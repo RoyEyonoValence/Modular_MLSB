@@ -12,7 +12,7 @@ from functools import lru_cache
 from numpy.random import choice
 from torch.nn.utils.rnn import pad_sequence
 
-from . import architecture as dti_architecture
+from . import architectures as dti_architecture
 from . import protein as protein_features
 from . import molecule as molecule_features
 
