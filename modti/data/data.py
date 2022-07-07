@@ -59,12 +59,12 @@ def drug_target_collate_fn(args, pad=False):
     return molecules, proteins, affinities
 
 
-def get_prot_featurizer(name, **params):
+def get_target_featurizer(name, **params):
     try:
         embedder = bio_emb.name_to_embedder[name]
     except AttributeError:
         raise ValueError(
-            f"Specified molecule featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
+            f"Specified Target featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
         )
     return embedder
 
@@ -74,13 +74,13 @@ def get_mol_featurizer(name, **params):
         embedder = functools.partial(datamol.to_fp, fp_type=name, **params)
     except AttributeError:
         raise ValueError(
-            f"Specified molecule featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
+            f"Specified molecule featurizer {name} is not supported. Options are {datamol.list_supported_fingerprints()}"
         )
     return embedder
 
 
 class DTIDataset(Dataset):
-    def __init__(self, name, drug_featurizer_params, prot_featurizer_params, **kwargs):
+    def __init__(self, name, drug_featurizer_params, target_featurizer_params, **kwargs):
         super(DTIDataset, self).__init__()
         drugs, targets, labels = get_raw_dataset(name, **kwargs)
         self.drugs = drugs
@@ -89,7 +89,9 @@ class DTIDataset(Dataset):
         assert len(drugs) == len(targets)
         assert len(targets) == len(labels)
         self.drug_featurizer = get_mol_featurizer(**drug_featurizer_params)
-        self.target_featurizer = get_prot_featurizer(**prot_featurizer_params)
+        self.target_featurizer = get_target_featurizer(**target_featurizer_params)
+        self.__mol_emb_size__ = None
+        self.__target_emb_size__ = None
 
     def __len__(self):
         return len(self.drugs)
@@ -98,24 +100,42 @@ class DTIDataset(Dataset):
         drug = self.drug_featurizer(self.drugs[i])
         target = self.target_featurizer(self.targets[i])
         label = torch.tensor(self.labels[i])
+        if self.__prot_emb_size__ is None:
+            self.__prot_emb_size__ = target.shape[-1]
+        if self.__mol_emb_size__ is None:
+            self.__mol_emb_size__ = drug.shape[-1]
         return drug, target, label
+
+    @property
+    def mol_embedding_size(self):
+        if self.__mol_emb_size__ is None:
+            _ = self.__getitem__(0)
+        return self.__mol_emb_size__
+
+    @property
+    def prot_embedding_size(self):
+        if self.__prot_emb_size__ is None:
+            _ = self.__getitem__(0)
+        return self.__prot_emb_size__
+
+    def get_embedding_sizes(self):
+        return dict(mol_embedding_size=self.mol_embedding_size, prot_embedding_size=self.prot_embedding_size)
 
 
 def get_dataset(*args, **kwargs):
     return DTIDataset(*args, **kwargs)
 
 
-def train_test_val_split(dataset, val_size=0.2, test_size=0.2):
+def train_val_test_split(dataset, val_size=0.2, test_size=0.2):
     assert 0 < val_size < 1, "Train_size should be between 0 and 1"
     assert 0 < test_size < 1, "Test_size should be between 0 and 1"
     dsize = len(dataset)
     test_size = int(dsize * test_size)
-    train_size = dsize - test_size
-
-    tmp, test = random_split(dataset, lengths=[train_size, test_size])
+    tmp_size = dsize - test_size
+    tmp, test = random_split(dataset, lengths=[tmp_size, test_size])
 
     dsize = len(tmp)
     val_size = int(dsize * val_size)
-    train_size = len(dataset) - test_size - val_size
+    train_size = dsize - val_size
     train, val = random_split(tmp, lengths=[train_size, val_size])
     return train, val
