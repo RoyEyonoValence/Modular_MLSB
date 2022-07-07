@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 from functools import lru_cache
 from torch.nn.utils.rnn import pad_sequence
 import warnings
+import pdb
 
 PRECOMPUTED_PROTEIN_PATH = "precomputed_proteins.pk"
 MODEL_DIR = "/afs/csail.mit.edu/u/s/samsl/Work/Adapting_PLM_DTI/models"

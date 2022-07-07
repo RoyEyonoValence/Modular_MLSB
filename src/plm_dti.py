@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 from functools import lru_cache
 from numpy.random import choice
 from torch.nn.utils.rnn import pad_sequence
+import pdb
 
 from . import architectures as dti_architecture
 from . import protein as protein_features
@@ -306,11 +307,12 @@ def get_dataloaders(
             f"Specified molecule featurizer {mol_feat} is not supported"
         )
     try:
-        prot_feats = getattr(protein_features, prot_feat)(pool=pool)
+        prot_feats = getattr(protein_features, prot_feat)(pool=pool)  # This is the line where it stalls
     except AttributeError:
         raise ValueError(
             f"Specified protein featurizer {prot_feat} is not supported"
         )
+    
     if precompute:
         mol_feats.precompute(
             all_smiles, to_disk_path=to_disk_path, from_disk=True

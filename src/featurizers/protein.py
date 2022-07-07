@@ -18,6 +18,7 @@ class BeplerBergerFeaturizer(Featurizer):
         self._embed = lm_embed
 
     def _transform(self, seq):
+        print(len(seq), seq)
         if len(seq) > self._max_len:
             seq = seq[: self._max_len]
 
