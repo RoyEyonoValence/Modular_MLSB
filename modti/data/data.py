@@ -6,11 +6,10 @@ import pandas as pd
 import pytorch_lightning as pl
 from pathlib import Path
 from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, random_split
 from bio_embeddings import embed as bio_emb
 
-print(dict(bio_emb))
-exit()
+
 DATASET_DIRECTORIES = dict(
     biosnap="./dataset/BIOSNAP/full_data",
     bindingdb="./dataset/BindingDB",
@@ -27,7 +26,7 @@ def get_dataset_dir(name):
         raise ValueError("Unknown Dataset type")
 
 
-def get_dataset(name, **_csv_kwargs):
+def get_raw_dataset(name, **_csv_kwargs):
     path = get_dataset_dir(name)
     _train_path = Path("train.csv")
     _val_path = Path("val.csv")
@@ -62,21 +61,35 @@ def drug_target_collate_fn(args, pad=False):
 
 def get_prot_featurizer(name, **params):
     try:
-        mol_feats = getattr(bio_emb, name)()
+        embedder = bio_emb.name_to_embedder[name]
     except AttributeError:
         raise ValueError(
-            f"Specified molecule featurizer {name} is not supported. Options are {bio_emb.}"
+            f"Specified molecule featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
         )
+    return embedder
+
+
+def get_mol_featurizer(name, **params):
+    try:
+        embedder = functools.partial(datamol.to_fp, fp_type=name, **params)
+    except AttributeError:
+        raise ValueError(
+            f"Specified molecule featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
+        )
+    return embedder
+
 
 class DTIDataset(Dataset):
-    def __init__(self, drugs, targets, labels, drug_featurizer_name, target_featurizer):
+    def __init__(self, name, drug_featurizer_params, prot_featurizer_params, **kwargs):
+        super(DTIDataset, self).__init__()
+        drugs, targets, labels = get_raw_dataset(name, **kwargs)
         self.drugs = drugs
         self.targets = targets
         self.labels = labels
         assert len(drugs) == len(targets)
         assert len(targets) == len(labels)
-        self.drug_featurizer = functools.partial(datamol.to_fp(fp_type=drug_featurizer_name, )
-        self.target_featurizer = get
+        self.drug_featurizer = get_mol_featurizer(**drug_featurizer_params)
+        self.target_featurizer = get_prot_featurizer(**prot_featurizer_params)
 
     def __len__(self):
         return len(self.drugs)
@@ -88,295 +101,21 @@ class DTIDataset(Dataset):
         return drug, target, label
 
 
-class DTIDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        data_dir: str,
-        drug_featurizer,
-        target_featurizer,
-        device: torch.device = torch.device("cpu"),
-        batch_size: int = 32,
-        shuffle: bool = True,
-        num_workers: int = 0,
-        header=0,
-        index_col=0,
-        sep=",",
-    ):
-
-        self._loader_kwargs = {
-            "batch_size": batch_size,
-            "shuffle": shuffle,
-            "num_workers": num_workers,
-            "collate_fn": drug_target_collate_fn,
-        }
-
-        self._csv_kwargs = {
-            "header": header,
-            "index_col": index_col,
-            "sep": sep,
-        }
-
-        self._device = device
-
-        self._data_dir = Path(data_dir)
-        self._train_path = Path("train.csv")
-        self._val_path = Path("val.csv")
-        self._test_path = Path("test.csv")
-
-        self._drug_column = "SMILES"
-        self._target_column = "Target Sequence"
-        self._label_column = "Label"
-
-        self.drug_featurizer = drug_featurizer
-        self.target_featurizer = target_featurizer
-
-    def prepare_data(self):
-
-        if (
-            self.drug_featurizer.path.exists()
-            and self.target_featurizer.path.exists()
-        ):
-            logg.warning("Drug and target featurizers already exist")
-            return
-
-        df_train = pd.read_csv(
-            self._data_dir / self._train_path, **self._csv_kwargs
-        )
-        df_val = pd.read_csv(
-            self._data_dir / self._val_path, **self._csv_kwargs
-        )
-        df_test = pd.read_csv(
-            self._data_dir / self._test_path, **self._csv_kwargs
-        )
-        dataframes = [df_train, df_val, df_test]
-        all_drugs = pd.concat(
-            [i[self._drug_column] for i in dataframes]
-        ).unique()
-        all_targets = pd.concat(
-            [i[self._target_column] for i in dataframes]
-        ).unique()
-
-        if self._device.type == "cuda":
-            self.drug_featurizer.cuda(self._device)
-            self.target_featurizer.cuda(self._device)
-
-        if not self.drug_featurizer.path.exists():
-            self.drug_featurizer.write_to_disk(all_drugs)
-
-        if not self.target_featurizer.path.exists():
-            self.target_featurizer.write_to_disk(all_targets)
-
-        self.drug_featurizer.cpu()
-        self.target_featurizer.cpu()
-
-    def setup(self, stage: T.Optional[str] = None):
-
-        self.df_train = pd.read_csv(
-            self._data_dir / self._train_path, **self._csv_kwargs
-        )
-        self.df_val = pd.read_csv(
-            self._data_dir / self._val_path, **self._csv_kwargs
-        )
-        self.df_test = pd.read_csv(
-            self._data_dir / self._test_path, **self._csv_kwargs
-        )
-        self._dataframes = [self.df_train, self.df_val, self.df_test]
-
-        all_drugs = pd.concat(
-            [i[self._drug_column] for i in self._dataframes]
-        ).unique()
-        all_targets = pd.concat(
-            [i[self._target_column] for i in self._dataframes]
-        ).unique()
-
-        if self._device.type == "cuda":
-            self.drug_featurizer.cuda(self._device)
-            self.target_featurizer.cuda(self._device)
-
-        self.drug_featurizer.preload(all_drugs)
-        self.drug_featurizer.cpu()
-
-        self.target_featurizer.preload(all_targets)
-        self.target_featurizer.cpu()
-
-        if stage == "fit" or stage is None:
-            self.data_train = BinaryDataset(
-                self.df_train[self._drug_column],
-                self.df_train[self._target_column],
-                self.df_train[self._label_column],
-                self.drug_featurizer,
-                self.target_featurizer,
-            )
-
-            self.data_val = BinaryDataset(
-                self.df_val[self._drug_column],
-                self.df_val[self._target_column],
-                self.df_val[self._label_column],
-                self.drug_featurizer,
-                self.target_featurizer,
-            )
-
-        if stage == "test" or stage is None:
-            self.data_test = BinaryDataset(
-                self.df_test[self._drug_column],
-                self.df_test[self._target_column],
-                self.df_test[self._label_column],
-                self.drug_featurizer,
-                self.target_featurizer,
-            )
-
-    def train_dataloader(self):
-        return DataLoader(self.data_train, **self._loader_kwargs)
-
-    def val_dataloader(self):
-        return DataLoader(self.data_val, **self._loader_kwargs)
-
-    def test_dataloader(self):
-        return DataLoader(self.data_test, **self._loader_kwargs)
+def get_dataset(*args, **kwargs):
+    return DTIDataset(*args, **kwargs)
 
 
-class TDCDataModule(pl.LightningDataModule):
-    def __init__(
-        self,
-        data_dir: str,
-        drug_featurizer: Featurizer,
-        target_featurizer: Featurizer,
-        device: torch.device = torch.device("cpu"),
-        batch_size: int = 32,
-        shuffle: bool = True,
-        num_workers: int = 0,
-        header=0,
-        index_col=0,
-        sep=",",
-    ):
+def train_test_val_split(dataset, val_size=0.2, test_size=0.2):
+    assert 0 < val_size < 1, "Train_size should be between 0 and 1"
+    assert 0 < test_size < 1, "Test_size should be between 0 and 1"
+    dsize = len(dataset)
+    test_size = int(dsize * test_size)
+    train_size = dsize - test_size
 
-        self._loader_kwargs = {
-            "batch_size": batch_size,
-            "shuffle": shuffle,
-            "num_workers": num_workers,
-            "collate_fn": drug_target_collate_fn,
-        }
+    tmp, test = random_split(dataset, lengths=[train_size, test_size])
 
-        self._csv_kwargs = {
-            "header": header,
-            "index_col": index_col,
-            "sep": sep,
-        }
-
-        self._device = device
-
-        self._data_dir = Path(data_dir)
-        self._train_path = Path("train.csv")
-        self._val_path = Path("val.csv")
-        self._test_path = Path("test.csv")
-
-        self._drug_column = "SMILES"
-        self._target_column = "Target Sequence"
-        self._label_column = "Label"
-
-        self.drug_featurizer = drug_featurizer
-        self.target_featurizer = target_featurizer
-
-    def prepare_data(self):
-
-        if (
-            self.drug_featurizer.path.exists()
-            and self.target_featurizer.path.exists()
-        ):
-            logg.warning("Drug and target featurizers already exist")
-            return
-
-        df_train = pd.read_csv(
-            self._data_dir / self._train_path, **self._csv_kwargs
-        )
-        df_val = pd.read_csv(
-            self._data_dir / self._val_path, **self._csv_kwargs
-        )
-        df_test = pd.read_csv(
-            self._data_dir / self._test_path, **self._csv_kwargs
-        )
-        dataframes = [df_train, df_val, df_test]
-        all_drugs = pd.concat(
-            [i[self._drug_column] for i in dataframes]
-        ).unique()
-        all_targets = pd.concat(
-            [i[self._target_column] for i in dataframes]
-        ).unique()
-
-        if self._device.type == "cuda":
-            self.drug_featurizer.cuda(self._device)
-            self.target_featurizer.cuda(self._device)
-
-        if not self.drug_featurizer.path.exists():
-            self.drug_featurizer.write_to_disk(all_drugs)
-
-        if not self.target_featurizer.path.exists():
-            self.target_featurizer.write_to_disk(all_targets)
-
-        self.drug_featurizer.cpu()
-        self.target_featurizer.cpu()
-
-    def setup(self, stage: T.Optional[str] = None):
-
-        self.df_train = pd.read_csv(
-            self._data_dir / self._train_path, **self._csv_kwargs
-        )
-        self.df_val = pd.read_csv(
-            self._data_dir / self._val_path, **self._csv_kwargs
-        )
-        self.df_test = pd.read_csv(
-            self._data_dir / self._test_path, **self._csv_kwargs
-        )
-        self._dataframes = [self.df_train, self.df_val, self.df_test]
-
-        all_drugs = pd.concat(
-            [i[self._drug_column] for i in self._dataframes]
-        ).unique()
-        all_targets = pd.concat(
-            [i[self._target_column] for i in self._dataframes]
-        ).unique()
-
-        if self._device.type == "cuda":
-            self.drug_featurizer.cuda(self._device)
-            self.target_featurizer.cuda(self._device)
-
-        self.drug_featurizer.preload(all_drugs)
-        self.drug_featurizer.cpu()
-
-        self.target_featurizer.preload(all_targets)
-        self.target_featurizer.cpu()
-
-        if stage == "fit" or stage is None:
-            self.data_train = BinaryDataset(
-                self.df_train[self._drug_column],
-                self.df_train[self._target_column],
-                self.df_train[self._label_column],
-                self.drug_featurizer,
-                self.target_featurizer,
-            )
-
-            self.data_val = BinaryDataset(
-                self.df_val[self._drug_column],
-                self.df_val[self._target_column],
-                self.df_val[self._label_column],
-                self.drug_featurizer,
-                self.target_featurizer,
-            )
-
-        if stage == "test" or stage is None:
-            self.data_test = BinaryDataset(
-                self.df_test[self._drug_column],
-                self.df_test[self._target_column],
-                self.df_test[self._label_column],
-                self.drug_featurizer,
-                self.target_featurizer,
-            )
-
-    def train_dataloader(self):
-        return DataLoader(self.data_train, **self._loader_kwargs)
-
-    def val_dataloader(self):
-        return DataLoader(self.data_val, **self._loader_kwargs)
-
-    def test_dataloader(self):
-        return DataLoader(self.data_test, **self._loader_kwargs)
+    dsize = len(tmp)
+    val_size = int(dsize * val_size)
+    train_size = len(dataset) - test_size - val_size
+    train, val = random_split(tmp, lengths=[train_size, val_size])
+    return train, val
