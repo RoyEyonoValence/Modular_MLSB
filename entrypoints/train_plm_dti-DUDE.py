@@ -20,8 +20,12 @@ import typing as T
 import logging
 
 from argparse import ArgumentParser
+<<<<<<< HEAD:entrypoints/train_plm_dti-DUDE.py
 from entrypoints import plm_dti
 import wandb
+=======
+from src import plm_dti
+>>>>>>> Removed some wandb code:train_plm_dti.py
 
 logg = logging.getLogger(__name__)
 
@@ -58,12 +62,7 @@ parser.add_argument(
     help="Distance in embedding space to supervise with",
     dest="latent_dist",
 )
-parser.add_argument(
-    "--wandb-proj",
-    required=True,
-    help="Weights and Biases Project",
-    dest="wandb_proj",
-)
+
 parser.add_argument(
     "-j",
     "--workers",
@@ -330,14 +329,6 @@ def main():
         model.parameters(), lr=config.training.clr
     )
 
-    print("--- loading wandb ---")
-    wandb.init(
-        project=args.wandb_proj,
-        name=config.experiment_id,
-        config=flatten(config),
-    )
-    wandb.watch(model, log_freq=100)
-
     # early stopping
     max_auprc = 0
     best_epoch = 0
@@ -371,6 +362,7 @@ def main():
                 m = torch.nn.Sigmoid()
                 n = torch.squeeze(m(score))
 
+<<<<<<< HEAD:entrypoints/train_plm_dti-DUDE.py
                 loss = loss_fct(n, label)
                 loss_history.append(loss)
                 wandb.log(
@@ -381,6 +373,11 @@ def main():
                         + i * args.batch_size,
                     }
                 )
+=======
+            loss = loss_fct(n, label)
+            loss_history.append(loss)
+            
+>>>>>>> Removed some wandb code:train_plm_dti.py
 
                 opt.zero_grad()
                 loss.backward()
@@ -451,22 +448,7 @@ def main():
                     val_logits,
                     val_loss,
                 ) = test(validation_generator, model)
-                wandb.log(
-                    {
-                        "val/loss": val_loss,
-                        "epoch": epo,
-                        "val/auc": float(val_auc),
-                        "val/aupr": float(val_auprc),
-                        "val/f1": float(val_f1),
-                        "val/acc": float(val_accuracy),
-                        "val/sens": float(val_sensitivity),
-                        "val/spec": float(val_specificity),
-                        "Charts/epoch_time": (
-                            epoch_time_end - epoch_time_start
-                        )
-                        / config.training.every_n_val,
-                    }
-                )
+                
                 if val_auprc > max_auprc:
                     model_max = copy.deepcopy(model)
                     torch.save(
@@ -503,6 +485,7 @@ def main():
                 test_loss,
             ) = test(testing_generator, model_max)
             test_end_time = time()
+<<<<<<< HEAD:entrypoints/train_plm_dti-DUDE.py
             wandb.log(
                 {
                     "test/loss": test_loss,
@@ -518,6 +501,8 @@ def main():
                     "Charts/best_epoch": best_epoch,
                 }
             )
+=======
+>>>>>>> Removed some wandb code:train_plm_dti.py
             print(
                 "Testing AUROC: "
                 + str(test_auc)
