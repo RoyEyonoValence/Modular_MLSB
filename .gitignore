@@ -7,7 +7,7 @@ models/
 wandb/
 nbdata/
 logs/
-configs/
+modti/apps/configs/
 
 # File Types
 **.pk

@@ -23,7 +23,7 @@ import typing as T
 import logging
 
 from argparse import ArgumentParser
-from src import plm_dti
+from modti import plm_dti
 import wandb
 
 logg = logging.getLogger(__name__)

@@ -1,25 +1,9 @@
 import copy
 from time import time
-import sys
 import numpy as np
-import pandas as pd
 import torch
-from sklearn.metrics import (
-    roc_auc_score,
-    average_precision_score,
-    f1_score,
-    roc_curve,
-    confusion_matrix,
-    precision_score,
-    recall_score,
-    auc,
-    precision_recall_curve,
-)
-from torch import nn
 from torch.autograd import Variable
-from torch.utils import data
 from tqdm import tqdm
-import typing as T
 import torchmetrics
 
 from argparse import ArgumentParser
@@ -27,10 +11,10 @@ from argparse import ArgumentParser
 import wandb
 from omegaconf import OmegaConf
 
-from src import featurizers
-from src import architectures
-from src.utils import set_random_seed, config_logger, sigmoid_cosine_distance_p
-from src.data import get_task_dir, DTIDataModule, DUDEDataModule
+from modti import featurizers
+from modti.models import architectures
+from modti.utils import set_random_seed, config_logger, sigmoid_cosine_distance_p
+from modti.data import get_task_dir, DTIDataModule, DUDEDataModule
 
 parser = ArgumentParser(description="PLM_DTI Training.")
 parser.add_argument(
@@ -196,11 +180,11 @@ def main():
     if not config.no_contrastive:
         logg.info("Loading contrastive data (DUDE)")
         dude_drug_featurizer = getattr(featurizers, config.drug_featurizer)(
-            save_dir="./dataset/DUDe/"
+            save_dir="../dataset/DUDe/"
         )
         dude_target_featurizer = getattr(
             featurizers, config.target_featurizer
-        )(save_dir="./dataset/DUDe/")
+        )(save_dir="../dataset/DUDe/")
 
         contrastive_datamodule = DUDEDataModule(
             config.contrastive_split,

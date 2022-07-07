@@ -18,7 +18,7 @@ from tqdm import tqdm
 import typing as T
 
 from argparse import ArgumentParser
-from src import plm_dti
+from modti import plm_dti
 
 parser = ArgumentParser(description="PLM_DTI Testing.")
 # parser.add_argument('-b', '--batch-size', default=16, type=int,

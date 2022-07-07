@@ -2,9 +2,9 @@ import torch
 
 from argparse import ArgumentParser
 
-from src import featurizers
-from src.utils import config_logger
-from src.data import get_task_dir, DTIDataModule
+from modti import featurizers
+from modti.utils import config_logger
+from modti.data import get_task_dir, DTIDataModule
 
 parser = ArgumentParser(description="Write DTI features to disk.")
 

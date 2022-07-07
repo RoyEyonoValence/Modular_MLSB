@@ -1,6 +1,3 @@
-import os
-import sys
-
 import numpy as np
 import pandas as pd
 import scipy
@@ -13,13 +10,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from Bio.PDB import PDBParser
-from Bio.PDB.PDBIO import PDBIO
 from Bio.SeqIO.PdbIO import AtomIterator
 from rdkit import Chem
-from rdkit.Chem import AllChem
 from sklearn.manifold import TSNE
 from torch.nn import CosineSimilarity
-from scipy.spatial.distance import cosine
 
 import logging
 
@@ -69,9 +63,8 @@ structure = parser.get_structure(
 seq = list(AtomIterator(target, structure))[0]
 
 # Load Model
-from src.architectures import SimplePLMModel, SimpleCosine
-from src.mol_feats import Morgan_f
-from src.prot_feats import ProtBert_f
+from modti.mol_feats import Morgan_f
+from modti.prot_feats import ProtBert_f
 
 mol_f = Morgan_f()
 prot_f = ProtBert_f()

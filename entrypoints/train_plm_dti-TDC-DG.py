@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 from omegaconf import OmegaConf
 
-BASE_DIR = "."
+BASE_DIR = ".."
 MODEL_BASE_DIR = f"{BASE_DIR}/best_models"
 DATA_DIR = f"{BASE_DIR}/nbdata"
 LOG_DIR = f"{BASE_DIR}/logs"
@@ -131,9 +131,9 @@ all_drugs = pd.concat([train_val, test]).Drug.values
 all_proteins = pd.concat([train_val, test]).Target.values
 
 ### Pre-compute drug and protein representations
-import src.molecule as MOL_FEATS
-import src.protein as PROT_FEATS
-import src.architecture as ARCHITECTURES
+import modti.molecule as MOL_FEATS
+import modti.protein as PROT_FEATS
+import modti.architecture as ARCHITECTURES
 
 to_disk_path = f"{DATA_DIR}/tdc_bindingdb_patent_train"
 
@@ -156,7 +156,7 @@ import copy
 from torch.autograd import Variable
 from time import time
 from scipy.stats import pearsonr
-from src.plm_dti import DTIDataset, molecule_protein_collate_fn
+from modti.plm_dti import DTIDataset, molecule_protein_collate_fn
 
 test_dataset = DTIDataset(
     test.Drug,
