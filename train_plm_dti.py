@@ -24,7 +24,6 @@ import logging
 
 from argparse import ArgumentParser
 from src import plm_dti
-import wandb
 
 logg = logging.getLogger(__name__)
 
@@ -61,12 +60,7 @@ parser.add_argument(
     help="Distance in embedding space to supervise with",
     dest="latent_dist",
 )
-parser.add_argument(
-    "--wandb-proj",
-    required=True,
-    help="Weights and Biases Project",
-    dest="wandb_proj",
-)
+
 parser.add_argument(
     "-j",
     "--workers",
@@ -284,14 +278,6 @@ def main():
     model = model.cuda()
     opt = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
-    print("--- loading wandb ---")
-    wandb.init(
-        project=args.wandb_proj,
-        name=config.experiment_id,
-        config=flatten(config),
-    )
-    wandb.watch(model, log_freq=100)
-
     # early stopping
     max_auprc = 0
     model_max = copy.deepcopy(model)
@@ -324,14 +310,7 @@ def main():
 
             loss = loss_fct(n, label)
             loss_history.append(loss)
-            wandb.log(
-                {
-                    "train/loss": loss,
-                    "epoch": epo,
-                    "step": epo * tg_len * args.batch_size
-                    + i * args.batch_size,
-                }
-            )
+            
 
             opt.zero_grad()
             loss.backward()
@@ -360,22 +339,7 @@ def main():
                     val_logits,
                     val_loss,
                 ) = test(validation_generator, model)
-                wandb.log(
-                    {
-                        "val/loss": val_loss,
-                        "epoch": epo,
-                        "val/auc": float(val_auc),
-                        "val/aupr": float(val_auprc),
-                        "val/f1": float(val_f1),
-                        "val/acc": float(val_accuracy),
-                        "val/sens": float(val_sensitivity),
-                        "val/spec": float(val_specificity),
-                        "Charts/epoch_time": (
-                            epoch_time_end - epoch_time_start
-                        )
-                        / config.training.every_n_val,
-                    }
-                )
+                
                 if val_auprc > max_auprc:
                     model_max = copy.deepcopy(model)
                     max_auprc = val_auprc
@@ -407,20 +371,6 @@ def main():
                 test_loss,
             ) = test(testing_generator, model_max)
             test_end_time = time()
-            wandb.log(
-                {
-                    "test/loss": test_loss,
-                    "epoch": epo,
-                    "test/auc": float(test_auc),
-                    "test/aupr": float(test_auprc),
-                    "test/f1": float(test_f1),
-                    "test/acc": float(test_accuracy),
-                    "test/sens": float(test_sensitivity),
-                    "test/spec": float(test_specificity),
-                    "test/eval_time": (test_end_time - test_start_time),
-                    "Charts/wall_clock_time": (end_time - start_time),
-                }
-            )
             print(
                 "Testing AUROC: "
                 + str(test_auc)

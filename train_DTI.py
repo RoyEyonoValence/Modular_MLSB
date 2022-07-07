@@ -24,7 +24,6 @@ import torchmetrics
 
 from argparse import ArgumentParser
 
-import wandb
 from omegaconf import OmegaConf
 
 from src import featurizers
@@ -37,12 +36,6 @@ parser.add_argument(
     "--exp-id", required=True, help="Experiment ID", dest="experiment_id"
 )
 parser.add_argument("--config", required=True, help="YAML config file")
-parser.add_argument(
-    "--wandb-proj",
-    required=True,
-    help="Weights and Biases Project",
-    dest="wandb_proj",
-)
 parser.add_argument(
     "--task",
     choices=["biosnap", "bindingdb", "davis", "biosnap_prot", "biosnap_mol"],
@@ -232,15 +225,6 @@ def main():
     if not config.no_contrastive:
         opt_contrastive = torch.optim.Adam(model.parameters(), lr=config.clr)
 
-    # Initialize wandb
-    logg.debug(f"Initializing wandb project {config.wandb_proj}")
-    wandb.init(
-        project=config.wandb_proj,
-        name=config.experiment_id,
-        config=dict(config),
-    )
-    wandb.watch(model, log_freq=100)
-
     # Metrics
     logg.debug("Creating metrics")
     max_aupr = 0
@@ -275,15 +259,8 @@ def main():
             loss_fct = torch.nn.BCELoss()
             pred, label = step(model, batch, device)
             loss = loss_fct(pred, label)
+            
 
-            wandb.log(
-                {
-                    "epoch": epo + 1,
-                    "train/loss": loss,
-                    "step": (epo * tg_len * config.batch_size)
-                    + (i * config.batch_size),
-                }
-            )
 
             opt.zero_grad()
             loss.backward()
@@ -310,8 +287,6 @@ def main():
                     anchor, positive, negative
                 )
 
-                wandb.log({"epoch": epo + 1, "train/c_loss": contrastive_loss})
-
                 opt_contrastive.zero_grad()
                 contrastive_loss.backward()
                 opt_contrastive.step()
@@ -329,8 +304,7 @@ def main():
                 val_results["Charts/epoch_time"] = (
                     epoch_time_end - epoch_time_start
                 ) / config.every_n_val
-
-                wandb.log(val_results)
+                
 
                 if val_results["val/AUPR"] > max_aupr:
                     model_max = copy.deepcopy(model)
@@ -356,7 +330,6 @@ def main():
 
             test_results["test/eval_time"] = test_end_time - test_start_time
             test_results["Charts/wall_clock_time"] = end_time - start_time
-            wandb.log(test_results)
 
             logg.info(
                 f"Test AUROC: {test_results['test/AUROC']}, AUPR: {test_results['test/AUPR']}, F1: {test_results['test/F1']}"
