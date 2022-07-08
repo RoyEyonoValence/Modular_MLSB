@@ -42,11 +42,11 @@ def get_raw_dataset(name, **_csv_kwargs):
     return df[_drug_column].data, df[_target_column].data, df[_label_column].data
 
 
-def drug_target_collate_fn(args, pad=False):
+def dti_collate_fn(args, pad=False):
     """
-    Collate function for PyTorch data loader.
+    Collate function for the data loader.
     :param args: Batch of training samples with molecule, protein, and affinity
-    :type args: Iterable[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+    :type args: Iterable[Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]]
     """
     mol_emb, prot_emb, labels = zip(*args)
 
@@ -56,7 +56,7 @@ def drug_target_collate_fn(args, pad=False):
         proteins = torch.stack(prot_emb, 0)
     molecules = torch.stack(mol_emb, 0)
     affinities = torch.stack(labels, 0)
-    return molecules, proteins, affinities
+    return (molecules, proteins), affinities
 
 
 def get_target_featurizer(name, **params):
@@ -120,6 +120,10 @@ class DTIDataset(Dataset):
 
     def get_embedding_sizes(self):
         return dict(mol_embedding_size=self.mol_embedding_size, prot_embedding_size=self.prot_embedding_size)
+
+    @property
+    def collate_fn(self):
+        return dti_collate_fn
 
 
 def get_dataset(*args, **kwargs):
