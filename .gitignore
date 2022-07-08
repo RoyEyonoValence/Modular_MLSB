@@ -10,6 +10,7 @@ logs/
 artifacts/models/
 
 # File Types
+**.pt
 **.pk
 **.h5
 
