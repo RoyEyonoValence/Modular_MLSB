@@ -6,7 +6,6 @@ import numpy as np
 from loguru import logger
 from argparse import Namespace
 from sklearn import metrics
-from sklearn.utils.multiclass import type_of_target
 from torch.utils.data import DataLoader
 from pytorch_lightning.tuner.tuning import Tuner
 from pytorch_lightning.loggers import WandbLogger
@@ -21,7 +20,7 @@ class BaseTrainer(LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=["collate_fn"])
 
         if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], (dict, Namespace)):
             hparams = args[0]
@@ -38,6 +37,12 @@ class BaseTrainer(LightningModule):
 
         self._network_params = vars(hparams).copy()
 
+        # dataset related_params
+        self.collate_fn = self._network_params.pop('collate_fn', None)
+        self.label_type = self._network_params.pop('label_type', "rgr")
+        gpu_avail = torch.cuda.is_available()
+
+        # training related params
         self.lr = self._network_params.pop('lr', 1e-3)
         self.opt = self._network_params.pop('optimizer', 'Adam')
         self.lr_scheduler = self._network_params.pop('lr_scheduler', None)
@@ -49,24 +54,25 @@ class BaseTrainer(LightningModule):
         self.early_stopping = self._network_params.pop('early_stopping', False)
         self.auto_scale_batch_size = self._network_params.pop('auto_scale_batch_size', None)
         self.accumulate_grad_batches = self._network_params.pop('accumulate_grad_batches', 1)
-        self.amp_backend = self._network_params.pop('amp_backend', 'native')
-        self.amp_level = self._network_params.pop('amp_level', '02')
+        self.amp_backend = self._network_params.pop('amp_backend', 'apex' if gpu_avail else 'native')
+        self.amp_level = self._network_params.pop('amp_level', '02' if gpu_avail else None)
         self.auto_lr_find = self._network_params.pop('auto_lr_find', False)
         self.min_batch_size = self._network_params.pop('min_batch_size', 32)
         self.max_batch_size = self._network_params.pop('max_batch_size', 2048)
         self.min_lr = self._network_params.pop('min_lr', 1e-6)
         self.max_lr = self._network_params.pop('max_lr', 1)
-        self.label_type = None
         self.fitted = False
         self.network = None
 
     def forward(self, *args, **kwargs):
         return self.network(*args, **kwargs)
 
-    def compute_loss_metrics(self, y_pred, y_true):
+    def compute_loss_metrics(self, y_pred, y_true, metrics_only=False):
         if hasattr(self.network, 'compute_loss_metrics'):
             return self.network.compute_loss_metrics(y_pred, y_true)
 
+        y_true_loss = y_true
+        y_pred_metrics = y_pred
         if self.label_type == "rgr":
             loss_fn = torch.nn.MSELoss()
             metrics = dict(
@@ -75,6 +81,7 @@ class BaseTrainer(LightningModule):
                 pmae=torchmetrics.MeanAbsolutePercentageError()
             )
         elif self.label_type == "b_clf":
+            y_true_loss = y_true.to(torch.float32)
             loss_fn = torch.nn.BCEWithLogitsLoss()
             metrics = dict(
                 acc=torchmetrics.Accuracy(),
@@ -89,7 +96,11 @@ class BaseTrainer(LightningModule):
             )
         else:
             raise ValueError("Unknown label type ")
-        results = dict(loss=loss_fn(y_pred, y_true))
+
+        if metrics_only:
+            results = dict()
+        else:
+            results = dict(loss=loss_fn(y_pred, y_true_loss))
         for metric_name, metric_fn in metrics.items():
             results[metric_name] = metric_fn(y_pred, y_true)
 
@@ -144,16 +155,15 @@ class BaseTrainer(LightningModule):
     def train_dataloader(self):
         bs = self.batch_size
         return DataLoader(self._train_dataset, batch_size=bs, shuffle=True,
-                          collate_fn=self._train_dataset.collate_fn, num_workers=4)
+                          collate_fn=self.collate_fn, num_workers=4)
 
     def val_dataloader(self):
         bs = self.batch_size
         return DataLoader(self._valid_dataset, batch_size=bs, shuffle=True,
-                          collate_fn=self._valid_dataset.collate_fn, num_workers=4)
+                          collate_fn=self.collate_fn, num_workers=4)
 
     def fit(self, train_dataset=None, valid_dataset=None, artifact_dir=None, **kwargs):
         self._train_dataset, self._valid_dataset = train_dataset, valid_dataset
-        self.label_type = self._train_dataset.label_type
 
         def get_trainer():
             callbacks = [EarlyStopping(patience=10)] if self.early_stopping else []
@@ -215,21 +225,10 @@ class BaseTrainer(LightningModule):
 
     def evaluate(self, dataset=None):
         ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4)
-        preds, targets = zip([(to_numpy(self.network.predict(x[0])), to_numpy(x[1])) for x in ploader])
-        preds = np.concatenate(preds, axis=0)
-        targets = np.concatenate(targets, axis=0)
-        rgr = "continuous" in type_of_target(targets)
-        res = {}
-        if rgr:
-            estimator_metrics = vars(metrics._regression)
-        else:
-            estimator_metrics = vars(metrics._classification)
-        for metric in estimator_metrics:
-            try:
-                res[metric] = estimator_metrics[metric](targets, preds)
-            except:
-                res[metric] = None
-
+        preds, targets = zip([(self.network.predict(x[0]), x[1]) for x in ploader])
+        preds = torch.cat(preds, dim=0)
+        targets = torch.cat(targets, dim=0)
+        res = self.compute_loss_metrics(preds, targets, metrics_only=True)
         return res
 
 

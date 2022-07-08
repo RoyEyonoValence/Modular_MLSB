@@ -1,27 +1,30 @@
+import os
 import torch
 import datamol
 import functools
-import typing as T
 import pandas as pd
-import pytorch_lightning as pl
 from pathlib import Path
+from sklearn.utils.multiclass import type_of_target
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, random_split
 from bio_embeddings import embed as bio_emb
+from modti.utils import parent_at_depth, to_tensor
 
+
+dataset_dir = os.path.join(parent_at_depth(__file__, 3), "artifacts/datasets")
 
 DATASET_DIRECTORIES = dict(
-    biosnap="./datasets/BIOSNAP/full_data",
-    bindingdb="./datasets/BindingDB",
-    davis="./datasets/DAVIS",
-    biosnap_prot="./datasets/BIOSNAP/unseen_protein",
-    biosnap_mol="./datasets/BIOSNAP/unseen_drug"
+    biosnap="BIOSNAP/full_data",
+    bindingdb="BindingDB",
+    davis="DAVIS",
+    biosnap_prot="BIOSNAP/unseen_protein",
+    biosnap_mol="BIOSNAP/unseen_drug"
 )
 
 
 def get_dataset_dir(name):
     if name in DATASET_DIRECTORIES:
-        return Path(DATASET_DIRECTORIES[name]).resolve()
+        return Path(os.path.join(dataset_dir, DATASET_DIRECTORIES[name])).resolve()
     else:
         raise ValueError("Unknown Dataset type")
 
@@ -39,7 +42,8 @@ def get_raw_dataset(name, **_csv_kwargs):
     df_val = pd.read_csv(path / _val_path, **_csv_kwargs)
     df_test = pd.read_csv(path / _test_path, **_csv_kwargs)
     df = pd.concat([df_train, df_val, df_test], axis=0)
-    return df[_drug_column].data, df[_target_column].data, df[_label_column].data
+
+    return df[_drug_column].values, df[_target_column].values, df[_label_column].values
 
 
 def dti_collate_fn(args, pad=False):
@@ -48,8 +52,8 @@ def dti_collate_fn(args, pad=False):
     :param args: Batch of training samples with molecule, protein, and affinity
     :type args: Iterable[Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]]
     """
-    mol_emb, prot_emb, labels = zip(*args)
-
+    tmp, labels = zip(*args)
+    mol_emb, prot_emb = zip(*tmp)
     if pad:
         proteins = pad_sequence(prot_emb, batch_first=True)
     else:
@@ -61,18 +65,22 @@ def dti_collate_fn(args, pad=False):
 
 def get_target_featurizer(name, **params):
     try:
-        embedder = bio_emb.name_to_embedder[name]
-    except AttributeError:
+        embedder = bio_emb.name_to_embedder[name](**params).embed
+    except:
         raise ValueError(
             f"Specified Target featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
         )
-    return embedder
+
+    def res(x):
+        y = embedder(x)
+        return y.mean(0)
+    return res
 
 
 def get_mol_featurizer(name, **params):
     try:
         embedder = functools.partial(datamol.to_fp, fp_type=name, **params)
-    except AttributeError:
+    except:
         raise ValueError(
             f"Specified molecule featurizer {name} is not supported. Options are {datamol.list_supported_fingerprints()}"
         )
@@ -97,14 +105,14 @@ class DTIDataset(Dataset):
         return len(self.drugs)
 
     def __getitem__(self, i):
-        drug = self.drug_featurizer(self.drugs[i])
-        target = self.target_featurizer(self.targets[i])
+        drug = to_tensor(self.drug_featurizer(self.drugs[i]), dtype=torch.float32)
+        target = to_tensor(self.target_featurizer(self.targets[i]), dtype=torch.float32)
         label = torch.tensor(self.labels[i])
-        if self.__prot_emb_size__ is None:
-            self.__prot_emb_size__ = target.shape[-1]
+        if self.__target_emb_size__ is None:
+            self.__target_emb_size__ = target.shape[-1]
         if self.__mol_emb_size__ is None:
             self.__mol_emb_size__ = drug.shape[-1]
-        return drug, target, label
+        return (drug, target), label
 
     @property
     def mol_embedding_size(self):
@@ -113,13 +121,19 @@ class DTIDataset(Dataset):
         return self.__mol_emb_size__
 
     @property
-    def prot_embedding_size(self):
-        if self.__prot_emb_size__ is None:
+    def target_embedding_size(self):
+        if self.__target_emb_size__ is None:
             _ = self.__getitem__(0)
-        return self.__prot_emb_size__
+        return self.__target_emb_size__
 
-    def get_embedding_sizes(self):
-        return dict(mol_embedding_size=self.mol_embedding_size, prot_embedding_size=self.prot_embedding_size)
+    def get_model_related_params(self):
+        return dict(
+            input_dim=self.mol_embedding_size,
+            task_dim=self.target_embedding_size,
+            label_type=self.label_type,
+            label_dim=self.label_dim,
+            collate_fn=self.collate_fn
+        )
 
     @property
     def collate_fn(self):
@@ -127,11 +141,19 @@ class DTIDataset(Dataset):
 
     @property
     def label_type(self):
-        return "rgr"
+        if "continuous" in type_of_target(self.labels):
+            t = "rgr"
+        elif "binary" == type_of_target(self.labels):
+            t = "b_clf"
+        elif "multiclass" == type_of_target(self.labels):
+            t = "mc_clf"
+        else:
+            raise RuntimeError("Unknown label type")
+        return t
 
     @property
     def label_dim(self):
-        return self.labels.shape[-1]
+        return 1 if self.labels.ndim < 2 else self.labels.shape[-1]
 
 
 def get_dataset(*args, **kwargs):
@@ -150,4 +172,4 @@ def train_val_test_split(dataset, val_size=0.2, test_size=0.2):
     val_size = int(dsize * val_size)
     train_size = dsize - val_size
     train, val = random_split(tmp, lengths=[train_size, val_size])
-    return train, val
+    return train, val, test

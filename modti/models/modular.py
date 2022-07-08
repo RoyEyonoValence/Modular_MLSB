@@ -28,7 +28,7 @@ class ModularNetwork(nn.Module):
         self.op = op
 
         self.pred_modules = nn.ModuleList([
-            DeepConcat(input_dim=input_dim, task_dim=task_dim, **module_layer_params, output_dim=1 if op else 2)
+            DeepConcat(input_dim=latent_dim, task_dim=latent_dim, **module_layer_params, output_dim=1 if op else 2)
             for _ in range(self.nb_modules)])
 
         self.input_projector = nn.Sequential(nn.Linear(self.input_dim, self.latent_dim), self.activation)

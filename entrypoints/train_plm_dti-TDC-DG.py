@@ -1,16 +1,11 @@
 import os
 import sys
 import pandas as pd
-import pickle as pk
 import numpy as np
 import typing as T
 from datetime import datetime
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 import torch
-from torch import nn
 from torch.utils.data import DataLoader
 from argparse import ArgumentParser
 from omegaconf import OmegaConf
@@ -156,7 +151,7 @@ import copy
 from torch.autograd import Variable
 from time import time
 from scipy.stats import pearsonr
-from modti.plm_dti import DTIDataset, molecule_protein_collate_fn
+from entrypoints.plm_dti import DTIDataset, molecule_protein_collate_fn
 
 test_dataset = DTIDataset(
     test.Drug,

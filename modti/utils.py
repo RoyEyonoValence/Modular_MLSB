@@ -129,7 +129,8 @@ def to_tensor(*x, device=None, dtype=None):
         else:
             elem = torch.tensor(elem)
 
-        elem = elem.to(dtype=dtype, device=device)
+        elem = elem.to(dtype=elem.dtype if dtype is None else dtype,
+                       device=elem.device if device is None else device)
         out.append(elem)
 
     if len(out) == 1:
@@ -212,6 +213,7 @@ def get_activation(activation):
         'Unhandled activation function'
     if activation[0].lower() == 'none':
         return None
+
     return vars(torch.nn.modules.activation)[activation[0]]()
 
 

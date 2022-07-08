@@ -1,6 +1,5 @@
 import copy
 from time import time
-import sys
 import numpy as np
 import pandas as pd
 import torch
@@ -15,15 +14,13 @@ from sklearn.metrics import (
     auc,
     precision_recall_curve,
 )
-from torch import nn
 from torch.autograd import Variable
-from torch.utils import data
 from tqdm import tqdm
 import typing as T
 import logging
 
 from argparse import ArgumentParser
-from modti import plm_dti
+from entrypoints import plm_dti
 import wandb
 
 logg = logging.getLogger(__name__)

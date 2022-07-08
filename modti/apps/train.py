@@ -11,7 +11,7 @@ from datetime import datetime
 from loguru import logger
 from pytorch_lightning.loggers import WandbLogger
 
-from .utils import load_hp, parse_overrides, nested_dict_update
+from modti.apps.utils import load_hp, parse_overrides, nested_dict_update
 from modti.data import get_dataset, train_val_test_split
 from modti.models import get_model
 
@@ -34,12 +34,11 @@ def train_cli(config_path, overrides, wandb_project):
     seed = config.get("seed", 42)
     np.random.seed(seed)
     torch.manual_seed(seed)
-
-    dataset = get_dataset(**config.get("datasets"))
+    dataset = get_dataset(**config.get("dataset"))
     train, valid, test = train_val_test_split(dataset, val_size=0.2, test_size=0.2)
     logger.info("Succesfully initialized and split the datasets")
 
-    model = get_model(**config.get("model"), **dataset.get_embedding_sizes())
+    model = get_model(**config.get("model"), **dataset.get_model_related_params())
     logger.info("Succesfully initialized model")
 
     if wandb_project is not None:
@@ -61,6 +60,7 @@ def train_cli(config_path, overrides, wandb_project):
 
     loggers = True if wandb_project is None else [WandbLogger(log_model=True)]
     model.fit(train_dataset=train, valid_dataset=valid, loggers=loggers, **fit_params)
+    model.evaluate(test)
 
 
 if __name__ == "__main__":

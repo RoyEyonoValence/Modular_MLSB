@@ -1,9 +1,13 @@
 import copy
-from time import time
-import sys
+import click
+import torch
+import wandb
+import typing as T
 import numpy as np
 import pandas as pd
-import torch
+from time import time
+from tqdm import tqdm
+from omegaconf import OmegaConf
 from sklearn.metrics import (
     roc_auc_score,
     average_precision_score,
@@ -15,105 +19,173 @@ from sklearn.metrics import (
     auc,
     precision_recall_curve,
 )
-from torch import nn
 from torch.autograd import Variable
-from torch.utils import data
-from tqdm import tqdm
-import typing as T
-import logging
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import Dataset, DataLoader
+from modti.models import pred_layers as dti_architecture
 
-from argparse import ArgumentParser
-from modti import plm_dti
-import wandb
 
-logg = logging.getLogger(__name__)
+##################
+# Data Set Utils #
+##################
 
-parser = ArgumentParser(description="PLM_DTI Training.")
-parser.add_argument(
-    "-b",
-    "--batch-size",
-    default=16,
-    type=int,
-    metavar="N",
-    help="mini-batch size (default: 16), this is the total "
-    "batch size of all GPUs on the current node when "
-    "using Data Parallel or Distributed Data Parallel",
-)
-parser.add_argument(
-    "--exp-id", required=True, help="Experiment ID", dest="experiment_id"
-)
-parser.add_argument(
-    "--model-type",
-    required=True,
-    default="SimpleCosine",
-    help="Model architecture",
-    dest="model_type",
-)
-parser.add_argument(
-    "--mol-feat", required=True, help="Molecule featurizer", dest="mol_feat"
-)
-parser.add_argument(
-    "--prot-feat", required=True, help="Molecule featurizer", dest="prot_feat"
-)
-parser.add_argument(
-    "--latent-dist",
-    default="Cosine",
-    help="Distance in embedding space to supervise with",
-    dest="latent_dist",
-)
-parser.add_argument(
-    "--wandb-proj",
-    required=True,
-    help="Weights and Biases Project",
-    dest="wandb_proj",
-)
-parser.add_argument(
-    "-j",
-    "--workers",
-    default=0,
-    type=int,
-    metavar="N",
-    help="number of data loading workers (default: 0)",
-)
-parser.add_argument(
-    "--epochs",
-    default=50,
-    type=int,
-    metavar="N",
-    help="number of total epochs to run",
-)
-parser.add_argument(
-    "--task",
-    choices=["biosnap", "bindingdb", "davis", "biosnap_prot", "biosnap_mol"],
-    default="",
-    type=str,
-    metavar="TASK",
-    required=True,
-    help="Task name. Could be biosnap, bindingdb, davis, biosnap_prot, biosnap_mol.",
-)
-parser.add_argument(
-    "--lr",
-    "--learning-rate",
-    default=1e-4,
-    type=float,
-    metavar="LR",
-    help="initial learning rate (default: 1e-4)",
-    dest="lr",
-)
-parser.add_argument(
-    "--r",
-    "--replicate",
-    default=0,
-    type=int,
-    help="Replicate",
-    dest="replicate",
-)
-parser.add_argument(
-    "--d", "--device", default=0, type=int, help="CUDA device", dest="device"
-)
-parser.add_argument(
-    "--checkpoint", default=None, help="Model weights to start from"
-)
+
+def molecule_protein_collate_fn(args, pad=False):
+    """
+    Collate function for PyTorch data loader.
+
+    :param args: Batch of training samples with molecule, protein, and affinity
+    :type args: Iterable[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]
+    """
+    memb = [a[0] for a in args]
+    pemb = [a[1] for a in args]
+    labs = [a[2] for a in args]
+
+    if pad:
+        proteins = pad_sequence(pemb, batch_first=True)
+    else:
+        proteins = torch.stack(pemb, 0)
+    molecules = torch.stack(memb, 0)
+    affinities = torch.stack(labs, 0)
+
+    return molecules, proteins, affinities
+
+
+class DTIDataset(Dataset):
+    def __init__(self, smiles, sequences, labels, mfeats, pfeats):
+        assert len(smiles) == len(sequences)
+        assert len(sequences) == len(labels)
+        self.smiles = smiles
+        self.sequences = sequences
+        self.labels = labels
+
+        self.mfeats = mfeats
+        self.pfeats = pfeats
+
+    def __len__(self):
+        return len(self.smiles)
+
+    @property
+    def shape(self):
+        return self.mfeats._size, self.pfeats._size
+
+    def __getitem__(self, i):
+        memb = self.mfeats(self.smiles[i])
+        pemb = self.pfeats(self.sequences[i])
+        lab = torch.tensor(self.labels[i])
+
+        return memb, pemb, lab
+
+
+#################
+# API Functions #
+#################
+
+def get_dataloaders(
+    train_df,
+    val_df,
+    test_df,
+    batch_size,
+    shuffle,
+    num_workers,
+    mol_feat,
+    prot_feat,
+    pool=True,
+    precompute=True,
+    to_disk_path=None,
+    device=0,
+):
+
+    df_values = {}
+    all_smiles = []
+    all_sequences = []
+    for df, set_name in zip(
+        [train_df, val_df, test_df], ["train", "val", "test"]
+    ):
+        all_smiles.extend(df["SMILES"])
+        all_sequences.extend(df["Target Sequence"])
+        # df_thin = df[["SMILES", "Target Sequence", "Label"]]
+        df_values[set_name] = (
+            df["SMILES"],
+            df["Target Sequence"],
+            df["Label"],
+        )
+
+    try:
+        mol_feats = getattr(molecule_features, mol_feat)()
+    except AttributeError:
+        raise ValueError(
+            f"Specified molecule featurizer {mol_feat} is not supported"
+        )
+    try:
+        prot_feats = getattr(protein_features, prot_feat)(pool=pool)
+    except AttributeError:
+        raise ValueError(
+            f"Specified protein featurizer {prot_feat} is not supported"
+        )
+    if precompute:
+        mol_feats.precompute(
+            all_smiles, to_disk_path=to_disk_path, from_disk=True
+        )
+        prot_feats.precompute(
+            all_sequences, to_disk_path=to_disk_path, from_disk=True
+        )
+
+    loaders = {}
+    for set_name in ["train", "val", "test"]:
+        smiles, sequences, labels = df_values[set_name]
+
+        dataset = DTIDataset(smiles, sequences, labels, mol_feats, prot_feats)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            collate_fn=lambda x: molecule_protein_collate_fn(x, pad=not pool),
+        )
+        loaders[set_name] = dataloader
+
+    return tuple(
+        [
+            loaders["train"],
+            loaders["val"],
+            loaders["test"],
+            mol_feats._size,
+            prot_feats._size,
+        ]
+    )
+
+
+def get_config(mol_feat, prot_feat):
+    data_cfg = {
+        "batch_size": 32,
+        "num_workers": 0,
+        "precompute": True,
+        "mol_feat": mol_feat,
+        "prot_feat": prot_feat,
+    }
+    model_cfg = {
+        # "latent_size": 1024,
+        # "distance_metric": "Cosine"
+    }
+    training_cfg = {
+        "n_epochs": 50,
+        "every_n_val": 1,
+    }
+    cfg = {
+        "data": data_cfg,
+        "model": model_cfg,
+        "training": training_cfg,
+    }
+
+    return OmegaConf.structured(cfg)
+
+
+def get_model(model_type, **model_kwargs):
+    try:
+        return getattr(dti_architecture, model_type)(**model_kwargs)
+    except AttributeError:
+        raise ValueError("Specified model is not supported")
 
 
 def flatten(d):
@@ -218,41 +290,34 @@ def test(data_generator, model):
         loss.item(),
     )
 
+@click.command(description="PLM_DTI Training.")
+@click.argument("datasets", type=str, choices=["biosnap", "bindingdb", "davis", "biosnap_prot", "biosnap_mol"],
+    help="Dataset name. Could be biosnap, bindingdb, davis, biosnap_prot, biosnap_mol.")
+@click.argument("mol-featurizer", help="Molecule featurizer", dest="mol_feat")
+@click.argument("prot-featurizer", help="Molecule featurizer", dest="prot_feat")
+@click.option("arch-type", type=str, default="SimpleCosine", help="Model architecture")
 
-def main():
-    args = parser.parse_args()
-    config = plm_dti.get_config(
-        args.experiment_id, args.mol_feat, args.prot_feat
-    )
+@click.option("batch-size", default=16, type=int,
+              help="Batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel")
+@click.option("latent-dist", default="Cosine", type=str, help="Distance in embedding space to supervise with",    dest="latent_dist",)
+@click.option("nb-epochs", default=50, type=int, help="number of total epochs to run",)
+@click.option("lr", default=1e-4, type=float, help="initial learning rate (default: 1e-4)")
+@click.option("seed", default=0, type=int, help="Seed")
+@click.option("checkpoint", default=None, help="Model weights to start from")
+@click.option("wandb-project", default=None, help="If not None, logs the experiment to this WandB project")
+def main(dataset, mol_featurizer, prot_featurizer, arch_type, batch_size, latent_dist,
+         nb_epochs, lr, seed, device, checkpoint, wandb_project):
 
-    device_no = args.device
-    use_cuda = torch.cuda.is_available()
-    device = torch.device(f"cuda:{device_no}" if use_cuda else "cpu")
-    torch.cuda.set_device(device)
-    print(f"Using CUDA device {device}")
-
-    config.task = args.task
-    config.replicate = args.replicate
-    torch.manual_seed(args.replicate)  # reproducible torch:2 np:3
-    np.random.seed(args.replicate)
-    config.model.model_type = args.model_type
-    if config.model.model_type == "LSTMCosine":
-        config.data.pool = False
-    else:
-        config.data.pool = True
-    config.training.lr = args.lr
-    config.training.n_epochs = args.epochs
-    config.data.batch_size = args.batch_size
+    torch.manual_seed(seed)  # reproducible torch:2 np:3
+    np.random.seed(seed)
+    config = get_config(mol_featurizer, prot_featurizer)
+    config.data.pool = config.model.arch_type != "LSTMCosine"
 
     loss_history = []
 
     print("--- Data Preparation ---")
-    config.data.batch_size = args.batch_size
-    config.data.shuffle = True
-    config.data.num_workers = args.workers
-    # config.data.drop_last = True
-    config.data.to_disk_path = f"saved_embeddings/{args.task}"
-    config.data.device = args.device
+
+    config.data.to_disk_path = f"saved_embeddings/{dataset}"
 
     dataFolder = get_task(args.task)
 
@@ -268,7 +333,7 @@ def main():
         testing_generator,
         mol_emb_size,
         prot_emb_size,
-    ) = plm_dti.get_dataloaders(df_train, df_val, df_test, **config.data)
+    ) = get_dataloaders(df_train, df_val, df_test, **config.data)
 
     config.model.mol_emb_size, config.model.prot_emb_size = (
         mol_emb_size,

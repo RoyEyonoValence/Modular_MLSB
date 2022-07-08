@@ -111,6 +111,7 @@ class FCLayer(nn.Module):
             layers.append(nn.Dropout(p=dropout))
         if b_norm:
             layers.append(nn.BatchNorm1d(out_size))
+        print(layers)
         self.net = nn.Sequential(*layers)
 
     @property
@@ -182,7 +183,7 @@ class MLP(nn.Module):
 
 
 class DeepConcat(nn.Module):
-    def __init__(self, input_dim, task_dim, hidden_sizes, output_dim=1, activation=nn.ReLU, dropout=0.0):
+    def __init__(self, input_dim, task_dim, hidden_sizes, output_dim=1, activation='ReLU', dropout=0.0):
         super().__init__()
         last_hdim = input_dim+task_dim if len(hidden_sizes) == 0 else hidden_sizes[-1]
         self.fc = nn.Sequential(MLP(input_dim+task_dim, hidden_sizes, activation=activation, dropout=dropout),

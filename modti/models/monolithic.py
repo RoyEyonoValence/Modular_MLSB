@@ -25,7 +25,7 @@ class MonolithicNetwork(nn.Module):
         self.input_projector = nn.Sequential(nn.Linear(self.input_dim, self.latent_dim), self.activation)
         self.task_projector = nn.Sequential(nn.Linear(self.task_dim, self.latent_dim), self.activation)
         pred_layer_class = AVAILABLE_PRED_LAYERS[pred_layer_type]
-        self.pred_layer = pred_layer_class(input_dim=input_dim, task_dim=task_dim, **pred_layer_params, output_dim=1)
+        self.pred_layer = pred_layer_class(input_dim=latent_dim, task_dim=latent_dim, **pred_layer_params, output_dim=1)
 
     def forward(self, input_task_pairs):
         inputs, tasks = input_task_pairs
