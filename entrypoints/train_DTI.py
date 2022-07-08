@@ -12,7 +12,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from modti import featurizers
-from modti.models import architectures
+from modti.models import layers
 from modti.utils import set_random_seed, config_logger, sigmoid_cosine_distance_p
 from modti.data import get_task_dir, DTIDataModule, DUDEDataModule
 
@@ -201,7 +201,7 @@ def main():
     # Create model
     logg.info("Creating model")
     if "checkpoint" not in config:
-        model = getattr(architectures, "SimpleCoembedding")(
+        model = getattr(layers, "SimpleCoembedding")(
             config.drug_shape,
             config.target_shape,
             latent_dimension=config.latent_dimension,

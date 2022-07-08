@@ -22,7 +22,7 @@ from sklearn.metrics import (
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
-from modti.models import architectures as dti_architecture
+from modti.models import layers as dti_architecture
 
 
 ##################
