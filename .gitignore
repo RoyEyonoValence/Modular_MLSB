@@ -1,17 +1,17 @@
 .ipynb_checkpoints/
+.idea/
 __pycache__/
 
 # Folders
 best_models/
-models/
 wandb/
 nbdata/
 logs/
-modti/apps/configs/
+artifacts/models/
 
 # File Types
 **.pk
 **.h5
 
 # Large files
-dataset/DUDe/full.tsv
+artifacts/datasets/DUDe/full.tsv

@@ -180,11 +180,11 @@ def main():
     if not config.no_contrastive:
         logg.info("Loading contrastive data (DUDE)")
         dude_drug_featurizer = getattr(featurizers, config.drug_featurizer)(
-            save_dir="../dataset/DUDe/"
+            save_dir="../artifacts/datasets/DUDe/"
         )
         dude_target_featurizer = getattr(
             featurizers, config.target_featurizer
-        )(save_dir="../dataset/DUDe/")
+        )(save_dir="../artifacts/datasets/DUDe/")
 
         contrastive_datamodule = DUDEDataModule(
             config.contrastive_split,

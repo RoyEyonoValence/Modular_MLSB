@@ -11,11 +11,11 @@ from bio_embeddings import embed as bio_emb
 
 
 DATASET_DIRECTORIES = dict(
-    biosnap="./dataset/BIOSNAP/full_data",
-    bindingdb="./dataset/BindingDB",
-    davis="./dataset/DAVIS",
-    biosnap_prot="./dataset/BIOSNAP/unseen_protein",
-    biosnap_mol="./dataset/BIOSNAP/unseen_drug"
+    biosnap="./datasets/BIOSNAP/full_data",
+    bindingdb="./datasets/BindingDB",
+    davis="./datasets/DAVIS",
+    biosnap_prot="./datasets/BIOSNAP/unseen_protein",
+    biosnap_mol="./datasets/BIOSNAP/unseen_drug"
 )
 
 

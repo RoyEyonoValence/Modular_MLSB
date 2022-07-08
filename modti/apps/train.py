@@ -35,9 +35,9 @@ def train_cli(config_path, overrides, wandb_project):
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    dataset = get_dataset(**config.get("dataset"))
+    dataset = get_dataset(**config.get("datasets"))
     train, valid, test = train_val_test_split(dataset, val_size=0.2, test_size=0.2)
-    logger.info("Succesfully initialized and split the dataset")
+    logger.info("Succesfully initialized and split the datasets")
 
     model = get_model(**config.get("model"), **dataset.get_embedding_sizes())
     logger.info("Succesfully initialized model")

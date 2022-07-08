@@ -132,15 +132,15 @@ def flatten(d):
 
 def get_task(task_name):
     if task_name.lower() == "biosnap":
-        return "./dataset/BIOSNAP/full_data"
+        return "./datasets/BIOSNAP/full_data"
     elif task_name.lower() == "bindingdb":
-        return "./dataset/BindingDB"
+        return "./datasets/BindingDB"
     elif task_name.lower() == "davis":
-        return "./dataset/DAVIS"
+        return "./datasets/DAVIS"
     elif task_name.lower() == "biosnap_prot":
-        return "./dataset/BIOSNAP/unseen_protein"
+        return "./datasets/BIOSNAP/unseen_protein"
     elif task_name.lower() == "biosnap_mol":
-        return "./dataset/BIOSNAP/unseen_drug"
+        return "./datasets/BIOSNAP/unseen_drug"
 
 
 def test(data_generator, model):

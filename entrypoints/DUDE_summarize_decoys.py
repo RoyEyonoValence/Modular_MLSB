@@ -16,7 +16,7 @@ pvals = pd.DataFrame(lines, columns=["Target", "Model", "TStat", "PVal"])
 pvals["PVal"] = pvals.PVal.astype(float)
 
 target_types = pd.read_csv(
-    "../dataset/DUDe/dude_subset_list.txt", names=["Target", "Subset"]
+    "../artifacts/datasets/DUDe/dude_subset_list.txt", names=["Target", "Subset"]
 )
 
 mrg = pd.merge(
