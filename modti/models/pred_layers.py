@@ -4,28 +4,43 @@ from modti.utils import get_activation
 
 
 class Cosine(nn.Module):
-    def forward(self, x1, x2):
-        return nn.CosineSimilarity()(x1, x2)
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, input, task):
+        return nn.CosineSimilarity()(input, task)
 
 
 class SquaredCosine(nn.Module):
-    def forward(self, x1, x2):
-        return nn.CosineSimilarity()(x1, x2) ** 2
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, input, task):
+        return nn.CosineSimilarity()(input, task) ** 2
 
 
 class DotProduct(nn.Module):
-    def forward(self, x1, x2):
-        return (x1 * x2).sum(-1)
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, input, task):
+        return (input * task).sum(-1)
 
 
 class Euclidean(nn.Module):
-    def forward(self, x1, x2):
-        return torch.cdist(x1, x2, p=2.0)
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, input, task):
+        return torch.cdist(input, task, p=2.0)
 
 
 class SquaredEuclidean(nn.Module):
-    def forward(self, x1, x2):
-        return torch.cdist(x1, x2, p=2.0) ** 2
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+    def forward(self, input, task):
+        return torch.cdist(input, task, p=2.0) ** 2
 
 
 class FCLayer(nn.Module):
@@ -167,16 +182,18 @@ class MLP(nn.Module):
 
 
 class DeepConcat(nn.Module):
-    def __init__(self, x1_dim, x2_dim, hidden_sizes, activation=nn.ReLU, dropout=0.0):
+    def __init__(self, input_dim, task_dim, hidden_sizes, output_dim=1, activation=nn.ReLU, dropout=0.0):
         super().__init__()
-        self.fc = MLP(x1_dim+x2_dim, hidden_sizes, activation=activation, dropout=dropout)
+        last_hdim = input_dim+task_dim if len(hidden_sizes) == 0 else hidden_sizes[-1]
+        self.fc = nn.Sequential(MLP(input_dim+task_dim, hidden_sizes, activation=activation, dropout=dropout),
+                                nn.Linear(last_hdim, output_dim))
 
-    def forward(self, x1, x2):
-        x = torch.cat([x1, x2], dim=-1)
+    def forward(self, input, task):
+        x = torch.cat([input, task], dim=-1)
         return self.fc(x).squeeze()
 
 
-AVAILABLE_LAYERS = {
+AVAILABLE_PRED_LAYERS = {
     "Cosine": Cosine,
     "SquaredCosine": SquaredCosine,
     "Euclidean": Euclidean,

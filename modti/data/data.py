@@ -125,6 +125,14 @@ class DTIDataset(Dataset):
     def collate_fn(self):
         return dti_collate_fn
 
+    @property
+    def label_type(self):
+        return "rgr"
+
+    @property
+    def label_dim(self):
+        return self.labels.shape[-1]
+
 
 def get_dataset(*args, **kwargs):
     return DTIDataset(*args, **kwargs)

@@ -3,7 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 from omegaconf import OmegaConf
 from torch.nn.utils.rnn import pad_sequence
 
-from .models import layers as dti_architecture
+from .models import pred_layers as dti_architecture
 from . import protein as protein_features
 from . import molecule as molecule_features
 
