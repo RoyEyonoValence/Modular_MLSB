@@ -6,6 +6,7 @@ import torchmetrics
 from modti.utils import get_activation
 from modti.models.base import BaseTrainer
 from modti.models.pred_layers import DeepConcat, MLP
+import pdb
 
 
 class ModularNetwork(nn.Module):
@@ -26,7 +27,6 @@ class ModularNetwork(nn.Module):
         self.latent_dim = latent_dim
         self.activation = get_activation(activation)
         self.op = op
-
         self.pred_modules = nn.ModuleList([
             DeepConcat(input_dim=latent_dim, task_dim=latent_dim, **module_layer_params, output_dim=1 if op else 2)
             for _ in range(self.nb_modules)])

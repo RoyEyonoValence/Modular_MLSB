@@ -11,6 +11,7 @@ from scipy import sparse
 from copy import deepcopy
 from joblib import Parallel, delayed
 from collections.abc import MutableMapping
+import pdb
 
 
 def is_callable(func):
@@ -83,7 +84,16 @@ def path_exists(path):
 
 # TORCH UTILS
 
-ACTIVATIONS = {'ReLU', 'Sigmoid', 'Tanh', 'ELU', 'SELU', 'GLU', 'LeakyReLU', 'Softplus', 'None'}
+ACTIVATIONS = {
+    'ReLU' : torch.nn.ReLU(), 
+    'Sigmoid' : torch.nn.Sigmoid(), 
+    'Tanh' : torch.nn.Tanh(), 
+    'ELU' : torch.nn.ELU(), 
+    'SELU' : torch.nn.SELU(), 
+    'GLU' : torch.nn.GLU(), 
+    'LeakyReLU' : torch.nn.LeakyReLU(), 
+    'Softplus' : torch.nn.Softplus(), 
+    'None': None}
 
 
 OPTIMIZERS = {
@@ -207,14 +217,13 @@ def is_device_cuda(device, ignore_errors=False):
 def get_activation(activation):
     if is_callable(activation):
         return activation
-    activation = [
-        x for x in ACTIVATIONS if activation.lower() == x.lower()]
-    assert len(activation) > 0 and isinstance(activation[0], six.string_types), \
-        'Unhandled activation function'
-    if activation[0].lower() == 'none':
+    if activation is None:
         return None
-
-    return vars(torch.nn.modules.activation)[activation[0]]()
+    activation = [
+        ACTIVATIONS[x] for x in ACTIVATIONS if activation.lower() == x.lower()]
+    assert len(activation) > 0, \
+        'Unhandled activation function'
+    return activation[0]
 
 
 def get_optimizer(optimizer, *args, **kwargs):
