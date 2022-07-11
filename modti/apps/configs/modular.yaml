@@ -1,0 +1,25 @@
+seed: 42
+model_save_dir: "./best_models"
+wandb-project: null
+out_directory: "./artifacts/results"
+
+dataset:
+  name: davis
+  drug_featurizer_params:
+    name: "ecfp"
+    radius: 2
+  target_featurizer_params:
+    name: "fasttext" # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep']
+
+model:
+  name: "Modular"
+  nb_modules: 5
+  hidden_sizes: [256, 256]
+  latent_dim: 256
+  batch_size: 32
+  n_epochs: 50
+  lr: 1e-4
+
+fit_params:
+  nb_ckpts: 1
+  verbose: 1

@@ -102,7 +102,7 @@ class BaseTrainer(LightningModule):
         else:
             results = dict(loss=loss_fn(y_pred, y_true_loss))
         for metric_name, metric_fn in metrics.items():
-            results[metric_name] = metric_fn(y_pred, y_true)
+            results[metric_name] = metric_fn(y_pred_metrics, y_true)
 
         return results
 
