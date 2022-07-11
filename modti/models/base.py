@@ -13,6 +13,7 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CyclicLR, CosineAnnealingWarmRestarts
 from modti.utils import get_optimizer, to_numpy
+import pdb
 
 
 class BaseTrainer(LightningModule):
@@ -102,6 +103,8 @@ class BaseTrainer(LightningModule):
         else:
             results = dict(loss=loss_fn(y_pred, y_true_loss))
         for metric_name, metric_fn in metrics.items():
+            if y_true.is_cuda:
+                metric_fn = metric_fn.cuda()
             results[metric_name] = metric_fn(y_pred_metrics, y_true)
 
         return results
@@ -212,7 +215,7 @@ class BaseTrainer(LightningModule):
                                           num_training=50, early_stop_threshold=None)
             print(lr_finder_res.results)
 
-        trainer = get_trainer()
+        # trainer = get_trainer()
         trainer.fit(self)
 
         self.fitted = True
@@ -224,11 +227,13 @@ class BaseTrainer(LightningModule):
         return np.concatenate(res, axis=0)
 
     def evaluate(self, dataset=None):
-        ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4)
-        preds, targets = zip([(self.network.predict(x[0]), x[1]) for x in ploader])
+        # ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4) TODO: Subset Data object support collate_fn
+        ploader = DataLoader(dataset, batch_size=32, num_workers=4)
+        preds, targets = zip(*[(self.network.forward(x[0]), x[1]) for x in ploader])
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
         res = self.compute_loss_metrics(preds, targets, metrics_only=True)
+        print("Final Evaluation: ", res)
         return res
 
 
