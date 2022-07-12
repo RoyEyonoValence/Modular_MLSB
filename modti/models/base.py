@@ -40,7 +40,7 @@ class BaseTrainer(LightningModule):
 
         # dataset related_params
         self.collate_fn = self._network_params.pop('collate_fn', None)
-        self.label_type = self._network_params.pop('label_type', "rgr")
+        self.label_type = self._network_params.pop('label_type', "b_clf")
         gpu_avail = torch.cuda.is_available()
 
         # training related params

@@ -64,6 +64,9 @@ def dti_collate_fn(args, pad=False):
 
 
 def get_target_featurizer(name, **params):
+
+    
+
     try:
         embedder = bio_emb.name_to_embedder[name](**params).embed
     except:
