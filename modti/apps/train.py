@@ -21,7 +21,8 @@ from modti.models import get_model
 @click.argument("config-path", type=click.Path(exists=True))
 @click.argument("overrides", nargs=-1, type=str)
 @click.option("--wandb-project", default=None, help="If not None, logs the experiment to this WandB project")
-def train_cli(config_path, overrides, wandb_project):
+@click.option("--wandb-entity", default=None, help="If not None, logs the experiment to this WandB project")
+def train_cli(config_path, overrides, wandb_project, wandb_entity):
     """Train a DTI model
 
     Loads the configuration as specified by the YAML file at CONFIG_PATH. For quick experimentation, changes to these
@@ -43,7 +44,7 @@ def train_cli(config_path, overrides, wandb_project):
     logger.info("Succesfully initialized model")
 
     if wandb_project is not None:
-        wandb.init(wandb_project, config=config)
+        wandb.init(wandb_project, entity=wandb_entity, config=config)
 
     identifier = wandb.run.name if wandb_project is not None else str(uuid.uuid4()).split("-")[0]
     out_directory = os.path.join(config.get("out_directory"), datetime.now().strftime("%Y%m%d"), identifier)

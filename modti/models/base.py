@@ -1,6 +1,7 @@
 import os
 import wandb
 import torch
+from torch import nn
 import torchmetrics
 import numpy as np
 from loguru import logger
@@ -13,6 +14,7 @@ from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CyclicLR, CosineAnnealingWarmRestarts
 from modti.utils import get_optimizer, to_numpy
+import wandb
 import pdb
 
 
@@ -64,6 +66,7 @@ class BaseTrainer(LightningModule):
         self.max_lr = self._network_params.pop('max_lr', 1)
         self.fitted = False
         self.network = None
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, *args, **kwargs):
         return self.network(*args, **kwargs)
@@ -84,10 +87,11 @@ class BaseTrainer(LightningModule):
         elif self.label_type == "b_clf":
             y_true_loss = y_true.to(torch.float32)
             loss_fn = torch.nn.BCEWithLogitsLoss()
+            BINARY = 1
             metrics = dict(
                 acc=torchmetrics.Accuracy(),
-                aupr=torchmetrics.AveragePrecision(),
-                auroc=torchmetrics.AUROC(),
+                aupr=torchmetrics.AveragePrecision(num_classes=BINARY, multiclass=False),
+                auroc=torchmetrics.AUROC(num_classes=BINARY, multiclass=False),
                 f1=torchmetrics.F1Score()
             )
         elif self.label_type == "mc_clf":
@@ -105,8 +109,9 @@ class BaseTrainer(LightningModule):
         for metric_name, metric_fn in metrics.items():
             if y_true.is_cuda:
                 metric_fn = metric_fn.cuda()
-            results[metric_name] = metric_fn(y_pred_metrics, y_true)
-
+            
+            binary_pred = (self.sigmoid(y_pred_metrics) > 0.5) * 1
+            results[metric_name] = metric_fn(binary_pred, y_true)
         return results
 
     def configure_optimizers(self):
