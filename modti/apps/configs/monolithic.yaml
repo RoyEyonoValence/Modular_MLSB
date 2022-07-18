@@ -4,19 +4,19 @@ wandb-project: null
 out_directory: "./artifacts/results"
 
 dataset:
-  name: davis
+  name: bindingdb
   drug_featurizer_params:
     name: "ecfp"
     radius: 2
   target_featurizer_params:
-    name: "fasttext" # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep']
+    name: "esm" # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep']
 
 model:
   name: "Monolithic"
   pred_layer_type: "DeepConcat"
   hidden_sizes: [256, 256]
   latent_dim: 256
-  batch_size: 32
+  batch_size: 64
   n_epochs: 50
   lr: 1e-4
 

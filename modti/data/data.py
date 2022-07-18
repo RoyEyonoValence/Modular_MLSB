@@ -160,7 +160,7 @@ class DTIDataset(Dataset):
 
 
 def get_dataset(*args, **kwargs):
-    return DTIDataset(*args, **kwargs)
+    return DTIDataset(*args, **kwargs) #TODO: Make sure that this returns the entire dataset
 
 
 def train_val_test_split(dataset, val_size=0.2, test_size=0.2):
@@ -175,4 +175,4 @@ def train_val_test_split(dataset, val_size=0.2, test_size=0.2):
     val_size = int(dsize * val_size)
     train_size = dsize - val_size
     train, val = random_split(tmp, lengths=[train_size, val_size])
-    return train, val, test
+    return train, val, test # TODO: Inspect split of dataset w.r.t. model evaluation

@@ -29,6 +29,7 @@ def train_cli(config_path, overrides, wandb_project, wandb_entity):
     configurations can be specified using the OVERRIDES argument. This uses a specific override syntax:
     For example: `a.b.c=z` will create {'a': {'b': {'c': 'z'}}}
     """
+    # torch.multiprocessing.set_start_method('spawn')# temp solution !!!!
     config = load_hp(conf_path=config_path)
     overrides = parse_overrides(overrides)
     config = nested_dict_update(config, overrides)

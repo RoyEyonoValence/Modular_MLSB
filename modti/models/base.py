@@ -155,6 +155,7 @@ class BaseTrainer(LightningModule):
 
     def validation_step(self, batch, *args, **kwargs):
         result = self.train_val_step(batch, train=False)
+        # pdb.set_trace()
         self.log('checkpoint_on', result, batch_size=len(batch))
         self.log('early_stop_on', result, batch_size=len(batch))
         result = dict(checkpoint_on=result, early_stop_on=result)
@@ -221,6 +222,7 @@ class BaseTrainer(LightningModule):
             print(lr_finder_res.results)
 
         # trainer = get_trainer()
+        pdb.set_trace()
         trainer.fit(self)
 
         self.fitted = True
@@ -238,6 +240,7 @@ class BaseTrainer(LightningModule):
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
         res = self.compute_loss_metrics(preds, targets, metrics_only=True)
+        wandb.log(res)
         print("Final Evaluation: ", res)
         return res
 
