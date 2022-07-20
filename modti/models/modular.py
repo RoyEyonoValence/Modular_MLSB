@@ -29,10 +29,10 @@ class ModularNetwork(nn.Module):
         self.op = op
         self.pred_modules = nn.ModuleList([
             DeepConcat(input_dim=latent_dim, task_dim=latent_dim, **module_layer_params, output_dim=1 if op else 2)
-            for _ in range(self.nb_modules)])
+            for _ in range(self.nb_modules)]) #TODO: Use Cosine similarity for reproducing. MLP might not respect structure
 
         self.input_projector = nn.Sequential(nn.Linear(self.input_dim, self.latent_dim), self.activation)
-        self.task_projector = nn.Sequential(nn.Linear(self.task_dim, self.latent_dim), self.activation)
+        self.task_projector = nn.Sequential(nn.Linear(self.task_dim, self.latent_dim), self.activation) #TODO: Consider using activation for Cosine Similarity
         self.op_layer = MLP(self.task_dim, [1], activation=None)
 
     def forward(self, input_task_pairs):

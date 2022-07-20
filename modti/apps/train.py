@@ -18,10 +18,11 @@ from modti.models import get_model
 
 
 @click.command("train")
-@click.argument("config-path", type=click.Path(exists=True))
+#@click.argument("config-path", type=click.Path(exists=True))
+@click.argument("config-path", default="modti/apps/configs/monolithic.yaml")
 @click.argument("overrides", nargs=-1, type=str)
-@click.option("--wandb-project", default=None, help="If not None, logs the experiment to this WandB project")
-@click.option("--wandb-entity", default=None, help="If not None, logs the experiment to this WandB project")
+@click.option("--wandb-project", default="Modular DTI", help="If not None, logs the experiment to this WandB project")
+@click.option("--wandb-entity", default="royeyono", help="If not None, logs the experiment to this WandB project")
 def train_cli(config_path, overrides, wandb_project, wandb_entity):
     """Train a DTI model
 
@@ -67,4 +68,5 @@ def train_cli(config_path, overrides, wandb_project, wandb_entity):
 
 
 if __name__ == "__main__":
+    torch.multiprocessing.set_start_method('spawn')
     train_cli()

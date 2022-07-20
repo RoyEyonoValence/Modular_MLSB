@@ -74,10 +74,7 @@ def get_target_featurizer(name, **params):
             f"Specified Target featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
         )
 
-    def res(x):
-        y = embedder(x)
-        return y.mean(0)
-    return res
+    return embedder
 
 
 def get_mol_featurizer(name, **params):
@@ -101,6 +98,8 @@ class DTIDataset(Dataset):
         assert len(targets) == len(labels)
         self.drug_featurizer = get_mol_featurizer(**drug_featurizer_params)
         self.target_featurizer = get_target_featurizer(**target_featurizer_params)
+        self.drug_featurizer_params = drug_featurizer_params
+        self.target_featurizer_params = target_featurizer_params
         self.__mol_emb_size__ = None
         self.__target_emb_size__ = None
 
@@ -109,7 +108,14 @@ class DTIDataset(Dataset):
 
     def __getitem__(self, i):
         drug = to_tensor(self.drug_featurizer(self.drugs[i]), dtype=torch.float32)
-        target = to_tensor(self.target_featurizer(self.targets[i]), dtype=torch.float32)
+        if self.target_featurizer_params['name']=="esm":
+            _max_len = 1024
+            if len(self.targets[i]) > _max_len - 2:
+                target = to_tensor(self.target_featurizer(self.targets[i][: _max_len - 2]).mean(0), dtype=torch.float32)
+            else:
+                target = to_tensor(self.target_featurizer(self.targets[i]).mean(0), dtype=torch.float32)
+        else:
+            target = to_tensor(self.target_featurizer(self.targets[i]).mean(0), dtype=torch.float32)
         label = torch.tensor(self.labels[i])
         if self.__target_emb_size__ is None:
             self.__target_emb_size__ = target.shape[-1]

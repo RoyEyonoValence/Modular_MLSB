@@ -8,6 +8,11 @@ wandb/
 nbdata/
 logs/
 artifacts/models/
+Modti.egg-info/
+artifacts/results/
+build/
+dist/
+modti/apps/artifacts/
 
 # File Types
 **.pt

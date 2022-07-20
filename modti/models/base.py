@@ -222,7 +222,7 @@ class BaseTrainer(LightningModule):
             print(lr_finder_res.results)
 
         # trainer = get_trainer()
-        pdb.set_trace()
+        # pdb.set_trace()
         trainer.fit(self)
 
         self.fitted = True
