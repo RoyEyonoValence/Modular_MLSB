@@ -16,7 +16,7 @@ dataset_dir = os.path.join(parent_at_depth(__file__, 3), "artifacts/datasets")
 DATASET_DIRECTORIES = dict(
     biosnap="BIOSNAP/full_data",
     bindingdb="BindingDB",
-    davis="DAVIS",
+    davis="miniDAVIS",
     biosnap_prot="BIOSNAP/unseen_protein",
     biosnap_mol="BIOSNAP/unseen_drug"
 )
@@ -42,6 +42,27 @@ def get_raw_dataset(name, **_csv_kwargs):
     df_val = pd.read_csv(path / _val_path, **_csv_kwargs)
     df_test = pd.read_csv(path / _test_path, **_csv_kwargs)
     df = pd.concat([df_train, df_val, df_test], axis=0)
+
+    return df[_drug_column].values, df[_target_column].values, df[_label_column].values
+
+
+
+def get_raw_dataset_split(name, datatype, **_csv_kwargs):
+    path = get_dataset_dir(name)
+    _train_path = Path("train.csv")
+    _val_path = Path("val.csv")
+    _test_path = Path("test.csv")
+
+    _drug_column = "SMILES"
+    _target_column = "Target Sequence"
+    _label_column = "Label"
+
+    if datatype == "train":
+        df = pd.read_csv(path / _train_path, **_csv_kwargs)
+    elif datatype == "val":
+        df = pd.read_csv(path / _val_path, **_csv_kwargs)
+    else:
+        df = pd.read_csv(path / _test_path, **_csv_kwargs)
 
     return df[_drug_column].values, df[_target_column].values, df[_label_column].values
 
@@ -88,9 +109,12 @@ def get_mol_featurizer(name, **params):
 
 
 class DTIDataset(Dataset):
-    def __init__(self, name, drug_featurizer_params, target_featurizer_params, **kwargs):
+    def __init__(self, name, drug_featurizer_params, target_featurizer_params, datatype=None, **kwargs):
         super(DTIDataset, self).__init__()
-        drugs, targets, labels = get_raw_dataset(name, **kwargs)
+        if datatype is not None:
+            drugs, targets, labels = get_raw_dataset_split(name, datatype, **kwargs)
+        else:
+            drugs, targets, labels = get_raw_dataset(name, **kwargs)
         self.drugs = drugs
         self.targets = targets
         self.labels = labels

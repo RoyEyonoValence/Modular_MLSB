@@ -90,9 +90,9 @@ class BaseTrainer(LightningModule):
             BINARY = 1
             metrics = dict(
                 acc=torchmetrics.Accuracy(),
-                aupr=torchmetrics.AveragePrecision(num_classes=BINARY, multiclass=False),
-                auroc=torchmetrics.AUROC(num_classes=BINARY, multiclass=False),
-                f1=torchmetrics.F1Score()
+                #aupr=torchmetrics.AveragePrecision(num_classes=BINARY, multiclass=False),
+                #auroc=torchmetrics.AUROC(num_classes=BINARY, multiclass=False),
+                #f1=torchmetrics.F1Score()
             )
         elif self.label_type == "mc_clf":
             loss_fn = torch.nn.CrossEntropyLoss()
@@ -164,12 +164,12 @@ class BaseTrainer(LightningModule):
     def train_dataloader(self):
         bs = self.batch_size
         return DataLoader(self._train_dataset, batch_size=bs, shuffle=True,
-                          collate_fn=self.collate_fn, num_workers=4)
+                          collate_fn=self.collate_fn, num_workers=4, persistent_workers=True)
 
     def val_dataloader(self):
         bs = self.batch_size
-        return DataLoader(self._valid_dataset, batch_size=bs, shuffle=True,
-                          collate_fn=self.collate_fn, num_workers=4)
+        return DataLoader(self._valid_dataset, batch_size=bs, shuffle=False,
+                          collate_fn=self.collate_fn, num_workers=4, persistent_workers=True)
 
     def fit(self, train_dataset=None, valid_dataset=None, artifact_dir=None, **kwargs):
         self._train_dataset, self._valid_dataset = train_dataset, valid_dataset

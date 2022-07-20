@@ -38,11 +38,13 @@ def train_cli(config_path, overrides, wandb_project, wandb_entity):
     seed = config.get("seed", 42)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    dataset = get_dataset(**config.get("dataset"))
-    train, valid, test = train_val_test_split(dataset, val_size=0.2, test_size=0.2)
+    # train, valid, test = train_val_test_split(dataset, val_size=0.2, test_size=0.2)
+    train = get_dataset(**config.get("dataset"), datatype="train")
+    valid = get_dataset(**config.get("dataset"), datatype="val")
+    test = get_dataset(**config.get("dataset"), datatype="test")
     logger.info("Succesfully initialized and split the datasets")
 
-    model = get_model(**config.get("model"), **dataset.get_model_related_params())
+    model = get_model(**config.get("model"), **train.get_model_related_params())
     logger.info("Succesfully initialized model")
 
     if wandb_project is not None:
