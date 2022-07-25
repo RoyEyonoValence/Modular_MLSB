@@ -16,8 +16,8 @@ model:
   pred_layer_type: "Cosine"
   hidden_sizes: [256, 256]
   latent_dim: 1024
-  batch_size: 16
-  n_epochs: 50
+  batch_size: 32
+  n_epochs: 5
   lr: 1e-4
 
 fit_params:

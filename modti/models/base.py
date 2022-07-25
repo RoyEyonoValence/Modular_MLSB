@@ -46,7 +46,7 @@ class BaseTrainer(LightningModule):
         gpu_avail = torch.cuda.is_available()
 
         # training related params
-        self.lr = self._network_params.pop('lr', 1e-3)
+        self.lr = self._network_params.pop('lr', 1e-4)
         self.opt = self._network_params.pop('optimizer', 'Adam')
         self.lr_scheduler = self._network_params.pop('lr_scheduler', None)
         self.n_epochs = self._network_params.pop('n_epochs', 100)
@@ -90,7 +90,7 @@ class BaseTrainer(LightningModule):
             BINARY = 1
             metrics = dict(
                 acc=torchmetrics.Accuracy(),
-                #aupr=torchmetrics.AveragePrecision(num_classes=BINARY, multiclass=False),
+                aupr=torchmetrics.AveragePrecision(num_classes=BINARY, multiclass=False),
                 #auroc=torchmetrics.AUROC(num_classes=BINARY, multiclass=False),
                 #f1=torchmetrics.F1Score()
             )
@@ -110,7 +110,7 @@ class BaseTrainer(LightningModule):
             if y_true.is_cuda:
                 metric_fn = metric_fn.cuda()
             
-            binary_pred = (self.sigmoid(y_pred_metrics) > 0.5) * 1
+            binary_pred = self.sigmoid(y_pred_metrics)
             results[metric_name] = metric_fn(binary_pred, y_true)
         return results
 
@@ -229,14 +229,14 @@ class BaseTrainer(LightningModule):
         return self
 
     def predict(self, dataset=None):
-        ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4)
+        ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4, persistent_workers=True)
         res = [to_numpy(self.network.predict(x[0])) for x in ploader]
         return np.concatenate(res, axis=0)
 
     def evaluate(self, dataset=None):
         # ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4) TODO: Subset Data object support collate_fn
-        ploader = DataLoader(dataset, batch_size=32, num_workers=4)
-        preds, targets = zip(*[(self.network.forward(x[0]), x[1]) for x in ploader])
+        ploader = DataLoader(dataset, batch_size=32, num_workers=4, persistent_workers=True)
+        preds, targets = zip(*[(self.network.forward(x[0].cuda()), x[1].cuda()) for x in ploader])
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
         res = self.compute_loss_metrics(preds, targets, metrics_only=True)

@@ -89,7 +89,7 @@ def get_target_featurizer(name, **params):
     
 
     try:
-        embedder = bio_emb.name_to_embedder[name](**params).embed
+        embedder = bio_emb.name_to_embedder[name](**params, device='cuda').embed
     except:
         raise ValueError(
             f"Specified Target featurizer {name} is not supported. Options are {list(bio_emb.name_to_embedder.keys())}"
@@ -126,21 +126,15 @@ class DTIDataset(Dataset):
         self.target_featurizer_params = target_featurizer_params
         self.__mol_emb_size__ = None
         self.__target_emb_size__ = None
+        self.precompute_features()
 
     def __len__(self):
         return len(self.drugs)
 
     def __getitem__(self, i):
-        drug = to_tensor(self.drug_featurizer(self.drugs[i]), dtype=torch.float32)
-        if self.target_featurizer_params['name']=="esm":
-            _max_len = 1024
-            if len(self.targets[i]) > _max_len - 2:
-                target = to_tensor(self.target_featurizer(self.targets[i][: _max_len - 2]).mean(0), dtype=torch.float32)
-            else:
-                target = to_tensor(self.target_featurizer(self.targets[i]).mean(0), dtype=torch.float32)
-        else:
-            target = to_tensor(self.target_featurizer(self.targets[i]).mean(0), dtype=torch.float32)
-        label = torch.tensor(self.labels[i])
+        drug = to_tensor(self.drugs[i], dtype=torch.float32).cuda()
+        target = to_tensor(self.targets[i].mean(0), dtype=torch.float32).cuda()
+        label = torch.tensor(self.labels[i]).cuda()
         if self.__target_emb_size__ is None:
             self.__target_emb_size__ = target.shape[-1]
         if self.__mol_emb_size__ is None:
@@ -167,6 +161,21 @@ class DTIDataset(Dataset):
             label_dim=self.label_dim,
             collate_fn=self.collate_fn
         )
+    
+    def precompute_features(self):
+        for i in range(len(self.drugs)):
+            self.drugs[i] = self.drug_featurizer(self.drugs[i])
+
+        for i in range(len(self.targets)):
+            if self.target_featurizer_params['name']=="esm":
+                _max_len = 1024
+                if len(self.targets[i]) > _max_len - 2:
+                    self.targets[i] = self.target_featurizer(self.targets[i][: _max_len - 2])
+                else:
+                    self.targets[i] = self.target_featurizer(self.targets[i])
+            else:
+                self.targets[i] = self.target_featurizer(self.targets[i])
+        
 
     @property
     def collate_fn(self):
