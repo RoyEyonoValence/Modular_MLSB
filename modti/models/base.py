@@ -75,6 +75,7 @@ class BaseTrainer(LightningModule):
         if hasattr(self.network, 'compute_loss_metrics'):
             return self.network.compute_loss_metrics(y_pred, y_true)
 
+        
         y_true_loss = y_true
         y_pred_metrics = y_pred
         if self.label_type == "rgr":
@@ -86,13 +87,12 @@ class BaseTrainer(LightningModule):
             )
         elif self.label_type == "b_clf":
             y_true_loss = y_true.to(torch.float32)
-            loss_fn = torch.nn.BCEWithLogitsLoss()
-            BINARY = 1
+            loss_fn = torch.nn.BCELoss()
             metrics = dict(
                 acc=torchmetrics.Accuracy(),
-                aupr=torchmetrics.AveragePrecision(num_classes=BINARY, multiclass=False),
-                #auroc=torchmetrics.AUROC(num_classes=BINARY, multiclass=False),
-                #f1=torchmetrics.F1Score()
+                aupr=torchmetrics.AveragePrecision(),
+                auroc=torchmetrics.AUROC(),
+                f1=torchmetrics.F1Score()
             )
         elif self.label_type == "mc_clf":
             loss_fn = torch.nn.CrossEntropyLoss()
@@ -106,12 +106,15 @@ class BaseTrainer(LightningModule):
             results = dict()
         else:
             results = dict(loss=loss_fn(y_pred, y_true_loss))
+
         for metric_name, metric_fn in metrics.items():
             if y_true.is_cuda:
                 metric_fn = metric_fn.cuda()
-            
-            binary_pred = self.sigmoid(y_pred_metrics)
-            results[metric_name] = metric_fn(binary_pred, y_true)
+
+            if metric_name == "acc" or metric_name == "f1":
+                results[metric_name] = metric_fn((y_pred_metrics > 0.5)*1, y_true)
+            else:
+                results[metric_name] = metric_fn(y_pred_metrics, y_true)
         return results
 
     def configure_optimizers(self):
@@ -142,24 +145,69 @@ class BaseTrainer(LightningModule):
 
         ys_pred = self.network(xs)
         loss_metrics = self.compute_loss_metrics(ys_pred, ys)
-        prefix = 'train_' if train else 'val_'
+        '''prefix = 'train_' if train else 'val_'
         for key, value in loss_metrics.items():
-            self.log(prefix+key, value, prog_bar=True, batch_size=len(batch))
+            self.log(prefix+key, value.item(), prog_bar=True, batch_size=len(batch))'''
 
-        return loss_metrics.get('loss')
+        step_dict = {"preds": ys_pred, "targets": ys}
+
+        return loss_metrics.get('loss'), step_dict
+        # return ys_pred, ys
 
     def training_step(self, batch, batch_idx, optimizer_idx=0):
-        res = self.train_val_step(batch, train=True, batch_idx=batch_idx)
-        result = {'loss': res}
-        return result
+        
+        step_dict = None
+
+        if len(batch) == 2:
+            xs, ys = batch
+        else:
+            raise Exception("Was expecting a list or tuple of 2 or 3 elements")
+
+        loss, step_dict = self.train_val_step(batch, train=True, batch_idx=batch_idx)
+
+        step_dict["loss"] = loss
+
+        self.log('training_loss', loss, batch_size=len(batch))
+        self.log('checkpoint_on', loss, batch_size=len(batch)) # Same thing as the loss metric
+        self.log('early_stop_on', loss, batch_size=len(batch)) # Same thing as the loss metric
+
+        step_dict.pop("preds")
+        step_dict.pop("targets")
+
+        return step_dict # Only contains the loss
 
     def validation_step(self, batch, *args, **kwargs):
-        result = self.train_val_step(batch, train=False)
-        # pdb.set_trace()
-        self.log('checkpoint_on', result, batch_size=len(batch))
-        self.log('early_stop_on', result, batch_size=len(batch))
-        result = dict(checkpoint_on=result, early_stop_on=result)
-        return result
+
+        step_dict = None
+        
+        loss, step_dict = self.train_val_step(batch, train=True)
+        
+        return loss, step_dict # Returns loss and dictionary of pred
+
+
+    def training_epoch_end(self, outputs):
+        """
+        Nothing happens at the end of the training epoch.
+        It serves no purpose to do a general step for the training,
+        but it can explode the RAM when using a large dataset.
+        """
+        pass
+
+    def validation_epoch_end(self, outputs):
+        pred = None
+        target = None
+        for _, step_dict in outputs:
+            if pred is None:
+                pred = step_dict["preds"]
+                target = step_dict["targets"]
+            else:
+                pred = torch.concat((pred, step_dict["preds"]), 0)
+                target = torch.concat((target, step_dict["targets"]), 0)
+
+        loss_metrics = self.compute_loss_metrics(pred, target)
+        prefix = 'val_'
+        for key, value in loss_metrics.items():
+            self.log(prefix+key, value.item(), prog_bar=True)
 
     def train_dataloader(self):
         bs = self.batch_size
@@ -235,8 +283,11 @@ class BaseTrainer(LightningModule):
 
     def evaluate(self, dataset=None):
         # ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4) TODO: Subset Data object support collate_fn
+        preds = None
+        targets = None
         ploader = DataLoader(dataset, batch_size=32, num_workers=4, persistent_workers=True)
-        preds, targets = zip(*[(self.network.forward(x[0].cuda()), x[1].cuda()) for x in ploader])
+        self.network = self.network.cuda()
+        preds, targets = zip(*[(self.network(x[0]), x[1]) for x in ploader])
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
         res = self.compute_loss_metrics(preds, targets, metrics_only=True)

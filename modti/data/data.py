@@ -16,7 +16,7 @@ dataset_dir = os.path.join(parent_at_depth(__file__, 3), "artifacts/datasets")
 DATASET_DIRECTORIES = dict(
     biosnap="BIOSNAP/full_data",
     bindingdb="BindingDB",
-    davis="miniDAVIS",
+    davis="DAVIS",
     biosnap_prot="BIOSNAP/unseen_protein",
     biosnap_mol="BIOSNAP/unseen_drug"
 )

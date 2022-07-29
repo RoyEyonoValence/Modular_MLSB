@@ -6,41 +6,46 @@ from modti.utils import get_activation
 class Cosine(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        self.m = torch.nn.Sigmoid()
 
     def forward(self, input, task):
-        return nn.CosineSimilarity()(input, task)
+        return self.m(nn.CosineSimilarity()(input, task))
 
 
 class SquaredCosine(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        self.m = torch.nn.Sigmoid()
 
     def forward(self, input, task):
-        return nn.CosineSimilarity()(input, task) ** 2
+        return self.m(nn.CosineSimilarity()(input, task) ** 2)
 
 
 class DotProduct(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        self.m = torch.nn.Sigmoid()
 
     def forward(self, input, task):
-        return (input * task).sum(-1)
+        return self.m((input * task).sum(-1))
 
 
 class Euclidean(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        self.m = torch.nn.Sigmoid()
 
     def forward(self, input, task):
-        return torch.cdist(input, task, p=2.0)
+        return self.m(torch.cdist(input, task, p=2.0))
 
 
 class SquaredEuclidean(nn.Module):
     def __init__(self, *args, **kwargs):
         super().__init__()
+        self.m = torch.nn.Sigmoid()
 
     def forward(self, input, task):
-        return torch.cdist(input, task, p=2.0) ** 2
+        return self.m(torch.cdist(input, task, p=2.0) ** 2)
 
 
 class FCLayer(nn.Module):
@@ -188,10 +193,11 @@ class DeepConcat(nn.Module):
         last_hdim = input_dim+task_dim if len(hidden_sizes) == 0 else hidden_sizes[-1]
         self.fc = nn.Sequential(MLP(input_dim+task_dim, hidden_sizes, activation=activation, dropout=dropout),
                                 nn.Linear(last_hdim, output_dim))
+        self.m = torch.nn.Sigmoid()
 
     def forward(self, input, task):
         x = torch.cat([input, task], dim=-1)
-        return self.fc(x).squeeze()
+        return self.m(self.fc(x).squeeze())
 
 
 AVAILABLE_PRED_LAYERS = {
