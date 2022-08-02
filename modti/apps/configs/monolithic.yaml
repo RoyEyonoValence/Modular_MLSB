@@ -1,4 +1,4 @@
-seed: 42
+seed: 53
 model_save_dir: "./best_models"
 wandb-project: null
 out_directory: "./artifacts/results"
@@ -9,7 +9,7 @@ dataset:
     name: "ecfp"
     radius: 2
   target_featurizer_params:
-    name: 'esm' # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep', 'esm']
+    name: 'bepler' # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep', 'esm', 'bepler']
 
 model:
   name: "Monolithic"
