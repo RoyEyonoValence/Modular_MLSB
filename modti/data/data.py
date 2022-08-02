@@ -163,6 +163,7 @@ class DTIDataset(Dataset):
         )
     
     def precompute_features(self):
+        print("Precomputing drug and protein featurization ...")
         for i in range(len(self.drugs)):
             self.drugs[i] = self.drug_featurizer(self.drugs[i])
 
