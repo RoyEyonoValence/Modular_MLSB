@@ -236,7 +236,6 @@ class BaseTrainer(LightningModule):
                           max_epochs=self.n_epochs,
                           logger=kwargs.get("loggers", True),
                           default_root_dir=artifact_dir,
-                          progress_bar_refresh_rate=int(kwargs['verbose'] > 0),
                           accumulate_grad_batches=self.accumulate_grad_batches,
                           callbacks=callbacks,
                           auto_scale_batch_size=self.auto_scale_batch_size,

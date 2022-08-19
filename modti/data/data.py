@@ -132,8 +132,8 @@ class DTIDataset(Dataset):
         return len(self.drugs)
 
     def __getitem__(self, i):
-        drug = to_tensor(self.drugs[i], dtype=torch.float32).cuda()
-        target = to_tensor(self.targets[i].mean(0), dtype=torch.float32).cuda()
+        drug = self.drugs[i]
+        target = self.targets[i].mean(0)
         label = torch.tensor(self.labels[i]).cuda()
         if self.__target_emb_size__ is None:
             self.__target_emb_size__ = target.shape[-1]
@@ -165,17 +165,17 @@ class DTIDataset(Dataset):
     def precompute_features(self):
         print("Precomputing drug and protein featurization ...")
         for i in range(len(self.drugs)):
-            self.drugs[i] = self.drug_featurizer(self.drugs[i])
+            self.drugs[i] = to_tensor(self.drug_featurizer(self.drugs[i]), dtype=torch.float32).cuda()
 
         for i in range(len(self.targets)):
             if self.target_featurizer_params['name']=="esm":
                 _max_len = 1024
                 if len(self.targets[i]) > _max_len - 2:
-                    self.targets[i] = self.target_featurizer(self.targets[i][: _max_len - 2])
+                    self.targets[i] = to_tensor(self.target_featurizer(self.targets[i][: _max_len - 2]), dtype=torch.float32).cuda()
                 else:
-                    self.targets[i] = self.target_featurizer(self.targets[i])
+                    self.targets[i] = to_tensor(self.target_featurizer(self.targets[i]), dtype=torch.float32).cuda()
             else:
-                self.targets[i] = self.target_featurizer(self.targets[i])
+                self.targets[i] = to_tensor(self.target_featurizer(self.targets[i]), dtype=torch.float32).cuda()
         
 
     @property
