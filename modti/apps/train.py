@@ -41,7 +41,6 @@ def train_cli(config_path, overrides, wandb_project, wandb_entity):
     # train, valid, test = train_val_test_split(dataset, val_size=0.2, test_size=0.2)
     train = get_dataset(**config.get("dataset"), datatype="train")
     valid = get_dataset(**config.get("dataset"), datatype="val")
-    test = get_dataset(**config.get("dataset"), datatype="test")
     logger.info("Succesfully initialized and split the datasets")
 
     model = get_model(**config.get("model"), **train.get_model_related_params())
@@ -66,6 +65,10 @@ def train_cli(config_path, overrides, wandb_project, wandb_entity):
 
     loggers = True if wandb_project is None else [WandbLogger(log_model=True)]
     model.fit(train_dataset=train, valid_dataset=valid, loggers=loggers, **fit_params)
+    # clearing memory
+    train = None
+    valid = None
+    test = get_dataset(**config.get("dataset"), datatype="test")
     model.evaluate(test)
 
 

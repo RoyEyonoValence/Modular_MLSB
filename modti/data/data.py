@@ -9,6 +9,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, random_split
 from bio_embeddings import embed as bio_emb
 from modti.utils import parent_at_depth, to_tensor
+import numpy as np
 
 
 dataset_dir = os.path.join(parent_at_depth(__file__, 3), "artifacts/datasets")
@@ -132,8 +133,8 @@ class DTIDataset(Dataset):
         return len(self.drugs)
 
     def __getitem__(self, i):
-        drug = self.drugs[i]
-        target = self.targets[i].mean(0)
+        drug = to_tensor(self.drugs[i], dtype=torch.float32).cuda()
+        target = to_tensor(self.targets[i].mean(0), dtype=torch.float32).cuda()
         label = torch.tensor(self.labels[i]).cuda()
         if self.__target_emb_size__ is None:
             self.__target_emb_size__ = target.shape[-1]
@@ -164,18 +165,27 @@ class DTIDataset(Dataset):
     
     def precompute_features(self):
         print("Precomputing drug and protein featurization ...")
+        delete_drugs = []
         for i in range(len(self.drugs)):
-            self.drugs[i] = to_tensor(self.drug_featurizer(self.drugs[i]), dtype=torch.float32).cuda()
+            try:
+                self.drugs[i] = self.drug_featurizer(self.drugs[i])
+            except:
+                delete_drugs.append(i)
+                print(f"It seems like the input molecule '{self.drugs[i]}' is invalid.")
+
+        for i in delete_drugs:
+            self.drugs = np.delete(self.drugs, i)
+
 
         for i in range(len(self.targets)):
             if self.target_featurizer_params['name']=="esm":
                 _max_len = 1024
                 if len(self.targets[i]) > _max_len - 2:
-                    self.targets[i] = to_tensor(self.target_featurizer(self.targets[i][: _max_len - 2]), dtype=torch.float32).cuda()
+                    self.targets[i] = self.target_featurizer(self.targets[i][: _max_len - 2])
                 else:
-                    self.targets[i] = to_tensor(self.target_featurizer(self.targets[i]), dtype=torch.float32).cuda()
+                    self.targets[i] = self.target_featurizer(self.targets[i])
             else:
-                self.targets[i] = to_tensor(self.target_featurizer(self.targets[i]), dtype=torch.float32).cuda()
+                self.targets[i] = self.target_featurizer(self.targets[i])
         
 
     @property

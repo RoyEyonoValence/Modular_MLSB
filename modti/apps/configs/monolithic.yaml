@@ -1,12 +1,12 @@
-seed: 53
+seed: 96
 model_save_dir: "./best_models"
 wandb-project: null
 out_directory: "./artifacts/results"
 
 dataset:
-  name: davis
+  name: bindingdb
   drug_featurizer_params:
-    name: "ecfp"
+    name: "ecfp" 
     radius: 2
   target_featurizer_params:
     name: 'bepler' # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep', 'esm', 'bepler']
