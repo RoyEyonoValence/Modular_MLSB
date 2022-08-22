@@ -119,6 +119,8 @@ class DTIDataset(Dataset):
         self.drugs = drugs
         self.targets = targets
         self.labels = labels
+        self.unique_targets = dict()
+        self.unique_drug = dict()
         assert len(drugs) == len(targets)
         assert len(targets) == len(labels)
         self.drug_featurizer = get_mol_featurizer(**drug_featurizer_params)
@@ -168,7 +170,11 @@ class DTIDataset(Dataset):
         delete_drugs = []
         for i in range(len(self.drugs)):
             try:
-                self.drugs[i] = self.drug_featurizer(self.drugs[i])
+                if self.drugs[i] in self.unique_drug:
+                    self.drugs[i] = self.unique_drug[self.drugs[i]]
+                else:
+                    self.unique_drug[self.drugs[i]] = self.drug_featurizer(self.drugs[i])
+                    self.drugs[i] = self.unique_drug[self.drugs[i]]
             except:
                 delete_drugs.append(i)
                 print(f"It seems like the input molecule '{self.drugs[i]}' is invalid.")
@@ -178,14 +184,22 @@ class DTIDataset(Dataset):
 
 
         for i in range(len(self.targets)):
-            if self.target_featurizer_params['name']=="esm":
-                _max_len = 1024
-                if len(self.targets[i]) > _max_len - 2:
-                    self.targets[i] = self.target_featurizer(self.targets[i][: _max_len - 2])
-                else:
-                    self.targets[i] = self.target_featurizer(self.targets[i])
+
+            if self.targets[i] in self.unique_targets:
+                self.targets[i] = self.unique_targets[self.targets[i]]
             else:
-                self.targets[i] = self.target_featurizer(self.targets[i])
+                if self.target_featurizer_params['name']=="esm":
+                    _max_len = 1024
+                    if len(self.targets[i]) > _max_len - 2:
+                        self.unique_targets[self.targets[i]] = self.target_featurizer(self.targets[i][: _max_len - 2])
+                        self.targets[i] = self.unique_targets[self.targets[i]]
+                    else:
+                        self.unique_targets[self.targets[i]] =  self.target_featurizer(self.targets[i])
+                        self.targets[i] = self.unique_targets[self.targets[i]]
+                else:
+                    self.unique_targets[self.targets[i]] =  self.target_featurizer(self.targets[i])
+                    self.targets[i] = self.unique_targets[self.targets[i]]
+
         
 
     @property
