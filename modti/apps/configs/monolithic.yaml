@@ -4,7 +4,7 @@ wandb-project: null
 out_directory: "./artifacts/results"
 
 dataset:
-  name: davis
+  name: biosnap
   drug_featurizer_params:
     name: "ecfp" 
     radius: 2

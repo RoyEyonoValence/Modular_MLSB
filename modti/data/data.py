@@ -137,7 +137,7 @@ class DTIDataset(Dataset):
     def __getitem__(self, i):
         drug = to_tensor(self.drugs[i], dtype=torch.float32).cuda()
         target = to_tensor(self.targets[i].mean(0), dtype=torch.float32).cuda()
-        label = torch.tensor(self.labels[i]).cuda()
+        label = torch.tensor(int(self.labels[i])).cuda()
         if self.__target_emb_size__ is None:
             self.__target_emb_size__ = target.shape[-1]
         if self.__mol_emb_size__ is None:
