@@ -1,4 +1,4 @@
-seed: 90
+seed: 75
 model_save_dir: "./best_models"
 wandb-project: null
 out_directory: "./artifacts/results"
@@ -9,7 +9,7 @@ dataset:
     name: "ecfp" 
     radius: 2
   target_featurizer_params:
-    name: 'prottrans_bert_bfd' # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
+    name: 'bepler' # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
 
 model:
   name: "Monolithic"
