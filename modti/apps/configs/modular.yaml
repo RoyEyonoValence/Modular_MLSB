@@ -6,16 +6,17 @@ out_directory: "./artifacts/results"
 dataset:
   name: biosnap
   drug_featurizer_params:
-    name: "ecfp"
+    name: ["ecfp"]
     radius: 2
   target_featurizer_params:
-    name: "fasttext" # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'unirep']
+    name: ['one_hot_encoding', 'word2vec'] # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
 
 model:
   name: "Modular"
-  nb_modules: 5
+  pred_layer_type: "DoubleHeadedSimilarity"
+  nb_modules: 2
   hidden_sizes: [256, 256]
-  latent_dim: 256
+  latent_dim: 1024
   batch_size: 32
   n_epochs: 50
   lr: 1e-4

@@ -29,6 +29,16 @@ class DotProduct(nn.Module):
     def forward(self, input, task):
         return self.m((input * task).sum(-1))
 
+class DoubleHeadedSimilarity(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.m = torch.nn.Sigmoid()
+
+    def forward(self, input, task):
+        prob = self.m(nn.CosineSimilarity()(input, task)) #Cosine Similarity
+        y = (input * task).sum(-1) # Dot Product
+        return prob, y
+
 
 class Euclidean(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -207,4 +217,5 @@ AVAILABLE_PRED_LAYERS = {
     "SquaredEuclidean": SquaredEuclidean,
     "DotProduct": DotProduct,
     "DeepConcat": DeepConcat,
+    "DoubleHeadedSimilarity": DoubleHeadedSimilarity,
 }

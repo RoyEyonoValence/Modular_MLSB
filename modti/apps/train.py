@@ -19,7 +19,7 @@ from modti.models import get_model
 
 @click.command("train")
 #@click.argument("config-path", type=click.Path(exists=True))
-@click.argument("config-path", default="modti/apps/configs/monolithic.yaml")
+@click.argument("config-path", default="modti/apps/configs/modular.yaml")
 @click.argument("overrides", nargs=-1, type=str)
 @click.option("--wandb-project", default="Modular DTI", help="If not None, logs the experiment to this WandB project")
 @click.option("--wandb-entity", default="royeyono", help="If not None, logs the experiment to this WandB project")

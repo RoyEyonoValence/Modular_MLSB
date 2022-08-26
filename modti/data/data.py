@@ -10,6 +10,7 @@ from torch.utils.data import Dataset, random_split
 from bio_embeddings import embed as bio_emb
 from modti.utils import parent_at_depth, to_tensor
 import numpy as np
+from modti.apps.utils import load_hp, parse_overrides, nested_dict_update
 
 
 dataset_dir = os.path.join(parent_at_depth(__file__, 3), "artifacts/datasets")
@@ -119,30 +120,55 @@ class DTIDataset(Dataset):
         self.drugs = drugs
         self.targets = targets
         self.labels = labels
-        self.unique_targets = dict()
-        self.unique_drug = dict()
+        self.featurized_targets = []
+        self.featurized_drugs = []
         assert len(drugs) == len(targets)
         assert len(targets) == len(labels)
-        self.drug_featurizer = get_mol_featurizer(**drug_featurizer_params)
-        self.target_featurizer = get_target_featurizer(**target_featurizer_params)
+        self.drug_featurizer = {}
+        self.target_featurizer = {}
+        for featurizer in drug_featurizer_params['name']:
+            self.drug_featurizer[featurizer] = get_mol_featurizer(featurizer)
+        
+        for featurizer in target_featurizer_params['name']:
+            self.target_featurizer[featurizer] = get_target_featurizer(featurizer) #TODO: This will be a list when it is modular
+        
         self.drug_featurizer_params = drug_featurizer_params
-        self.target_featurizer_params = target_featurizer_params
+        self.target_featurizer_params = target_featurizer_params #TODO: This will be a list when it is modular
         self.__mol_emb_size__ = None
         self.__target_emb_size__ = None
-        self.precompute_features()
+        for featurizer_target_name  in self.target_featurizer:
+            _, target = self.precompute_features(drug=self.drugs,target=self.targets,
+                                                featurizer_target = (featurizer_target_name,
+                                                 self.target_featurizer[featurizer_target_name]))
+            self.featurized_targets.append(target)
+        
+        for featurizer_drug_name  in self.drug_featurizer:
+            drug, _ = self.precompute_features(drug=self.drugs, target=self.targets,
+                                                featurizer_drug = (featurizer_drug_name,
+                                                 self.drug_featurizer[featurizer_drug_name]))
+            self.featurized_drugs.append(drug)
 
     def __len__(self):
         return len(self.drugs)
 
     def __getitem__(self, i):
-        drug = to_tensor(self.drugs[i], dtype=torch.float32).cuda()
-        target = to_tensor(self.targets[i].mean(0), dtype=torch.float32).cuda()
+        drug_target = []
+        for drug in self.featurized_drugs:
+            drug_target.append(to_tensor(drug[i], dtype=torch.float32).cuda())
+
+        for target in self.featurized_targets:
+            drug_target.append(to_tensor(target[i].mean(0), dtype=torch.float32).cuda())
+        
+
         label = torch.tensor(int(self.labels[i])).cuda()
         if self.__target_emb_size__ is None:
-            self.__target_emb_size__ = target.shape[-1]
+            self.__target_emb_size__ = [drug__target.shape[-1] for drug__target in drug_target[1:]]
+            if len(self.__target_emb_size__) == 1:
+                self.__target_emb_size__ = self.__target_emb_size__[0]
         if self.__mol_emb_size__ is None:
-            self.__mol_emb_size__ = drug.shape[-1]
-        return (drug, target), label
+            self.__mol_emb_size__ = drug_target[0].shape[-1]
+
+        return tuple(drug_target), label # TODO: The final output of this should be a tuple of different featurizers
 
     @property
     def mol_embedding_size(self):
@@ -165,40 +191,48 @@ class DTIDataset(Dataset):
             collate_fn=self.collate_fn
         )
     
-    def precompute_features(self):
+    def precompute_features(self, drug, target, featurizer_target=None, featurizer_drug=None ):
         print("Precomputing drug and protein featurization ...")
-        delete_drugs = []
-        for i in range(len(self.drugs)):
-            try:
-                if self.drugs[i] in self.unique_drug:
-                    self.drugs[i] = self.unique_drug[self.drugs[i]]
-                else:
-                    self.unique_drug[self.drugs[i]] = self.drug_featurizer(self.drugs[i])
-                    self.drugs[i] = self.unique_drug[self.drugs[i]]
-            except:
-                delete_drugs.append(i)
-                print(f"It seems like the input molecule '{self.drugs[i]}' is invalid.")
 
-        for i in delete_drugs:
-            self.drugs = np.delete(self.drugs, i)
-
-
-        for i in range(len(self.targets)):
-
-            if self.targets[i] in self.unique_targets:
-                self.targets[i] = self.unique_targets[self.targets[i]]
-            else:
-                if self.target_featurizer_params['name']=="esm":
-                    _max_len = 1024
-                    if len(self.targets[i]) > _max_len - 2:
-                        self.unique_targets[self.targets[i]] = self.target_featurizer(self.targets[i][: _max_len - 2])
-                        self.targets[i] = self.unique_targets[self.targets[i]]
+        drugs = None
+        targets = None
+        unique_targets = dict()
+        unique_drug = dict()
+        if featurizer_drug is not None:
+            drugs = []
+            featurizer_drug_name, featurize_drug = featurizer_drug
+            for i in range(len(drug)):
+                try:
+                    if drug[i] in unique_drug:
+                        drugs.append(unique_drug[drug[i]])
                     else:
-                        self.unique_targets[self.targets[i]] =  self.target_featurizer(self.targets[i])
-                        self.targets[i] = self.unique_targets[self.targets[i]]
+                        unique_drug[drug[i]] = featurize_drug(drug[i])
+                        drugs.append(unique_drug[drug[i]])
+                except:
+                    print(f"It seems like the input molecule '{drug[i]}' is invalid.")
+
+        
+        if featurizer_target is not None:
+            targets = []
+            featurizer_target_name, featurize_target = featurizer_target
+            for i in range(len(target)):
+
+                if target[i] in unique_targets:
+                    targets.append(unique_targets[target[i]])
                 else:
-                    self.unique_targets[self.targets[i]] =  self.target_featurizer(self.targets[i])
-                    self.targets[i] = self.unique_targets[self.targets[i]]
+                    if featurizer_target_name=="esm":
+                        _max_len = 1024
+                        if len(target[i]) > _max_len - 2:
+                            unique_targets[target[i]] = featurize_target(target[i][: _max_len - 2])
+                            targets.append(unique_targets[target[i]])
+                        else:
+                            unique_targets[target[i]] =  featurize_target(target[i])
+                            targets.append(unique_targets[target[i]])
+                    else:
+                        unique_targets[target[i]] =  featurize_target(target[i])
+                        targets.append(unique_targets[target[i]])
+
+        return drugs, targets
 
         
 
@@ -240,3 +274,15 @@ def train_val_test_split(dataset, val_size=0.2, test_size=0.2):
     train_size = dsize - val_size
     train, val = random_split(tmp, lengths=[train_size, val_size])
     return train, val, test # TODO: Inspect split of dataset w.r.t. model evaluation
+
+
+if __name__ == "__main__":
+    # torch.multiprocessing.set_start_method('spawn')# temp solution !!!!
+    config = load_hp(conf_path="modti/apps/configs/modular.yaml")
+
+    seed = config.get("seed", 42)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    # train, valid, test = train_val_test_split(dataset, val_size=0.2, test_size=0.2)
+    train = get_dataset(**config.get("dataset"), datatype="train")
+    train.__getitem__(0)
