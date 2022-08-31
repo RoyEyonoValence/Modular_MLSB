@@ -76,14 +76,26 @@ def dti_collate_fn(args, pad=False):
     :type args: Iterable[Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]]
     """
     tmp, labels = zip(*args)
-    mol_emb, prot_emb = zip(*tmp)
+    affinities = torch.stack(labels, 0)
+    # tmp, = tmp if len(tmp) == 1 else tmp
+    embeddings = []
+
+    # mol_emb, prot_emb = zip(*tmp)
+
+    for i, embed in enumerate(list(zip(*tmp))):
+        embeddings.append(torch.stack(embed, 0))
+
+    # tmp = torch.stack(tmp, 0)
+
+    '''molecules = torch.stack(mol_emb, 0)
+
     if pad:
         proteins = pad_sequence(prot_emb, batch_first=True)
     else:
-        proteins = torch.stack(prot_emb, 0)
-    molecules = torch.stack(mol_emb, 0)
-    affinities = torch.stack(labels, 0)
-    return (molecules, proteins), affinities
+        proteins = torch.stack(prot_emb, 0)'''
+
+    
+    return tuple(embeddings), affinities
 
 
 def get_target_featurizer(name, **params):

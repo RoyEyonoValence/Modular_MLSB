@@ -2,6 +2,10 @@ from torch import nn
 from modti.utils import get_activation
 from modti.models.base import BaseTrainer
 from modti.models.pred_layers import AVAILABLE_PRED_LAYERS
+import torch
+from modti.apps.utils import load_hp, parse_overrides, nested_dict_update
+from modti.data import get_dataset, train_val_test_split
+import numpy as np
 
 
 class MonolithicNetwork(nn.Module):
@@ -38,3 +42,30 @@ class Monolithic(BaseTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.network = MonolithicNetwork(**self._network_params)
+
+
+if __name__ == "__main__":
+    # torch.multiprocessing.set_start_method('spawn')# temp solution !!!!
+    torch.multiprocessing.set_start_method('spawn')
+    config = load_hp(conf_path="modti/apps/configs/monolithic_mini.yaml")
+
+    seed = config.get("seed", 42)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    
+    train = get_dataset(**config.get("dataset"), datatype="train")
+    train.__getitem__(0)
+
+    model = Monolithic(**config.get("model"), **train.get_model_related_params())
+
+    params = {'batch_size': 64,
+          'shuffle': True,
+          'num_workers': 6,
+          'collate_fn': train.collate_fn}
+
+    training_generator = torch.utils.data.DataLoader(train, **params)
+
+    for batch, labels in training_generator:
+        output = model([x.cpu() for x in batch])
+        break
+    print(output)

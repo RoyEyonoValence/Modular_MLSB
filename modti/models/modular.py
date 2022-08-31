@@ -38,9 +38,9 @@ class ModularNetwork(nn.Module):
             for _ in range(self.nb_modules)]) #TODO: Use Cosine similarity for reproducing. MLP might not respect structure
 
         self.input_projector = []
-        self.task_projector = []
-        for i in range(self.nb_modules):
-            self.task_projector.append(nn.Sequential(nn.Linear(self.task_dim[i], self.latent_dim), self.activation))
+
+        self.task_projector = nn.ModuleList([nn.Sequential(nn.Linear(self.task_dim[i], self.latent_dim), self.activation) 
+                                            for i in range(self.nb_modules)])
         
         self.input_projector = nn.Sequential(nn.Linear(self.input_dim, self.latent_dim), self.activation)
         self.op_layer = MLP(self.input_dim, [1], activation=None)
@@ -52,26 +52,27 @@ class ModularNetwork(nn.Module):
         #if len(inputs) != 1:
         #    raise NotImplementedError("More than 1 drug featurizer is not supported yet.")
 
-        input_reprs = []
-        task_reprs = []
+        preds = self.predict([self.input_projector(inputs)], [self.task_projector[i](task) for i, task in enumerate(tasks)])
         
-        input_reprs.append(self.input_projector(inputs))
+        return F.sigmoid(preds)
 
-        for i, elem in enumerate(tasks):
-            task_reprs.append(self.task_projector[i](elem))
+    def predict(self, input, tasks):
+
+        
 
         if self.op:
-            outs = [modul(input_reprs[0].reshape(1, self.latent_dim), 
-                        task_reprs[i].reshape(1, self.latent_dim)) for i, modul in enumerate(self.pred_modules)]
+            raise NotImplementedError("Modular op is not supported yet.")
+            outs = [modul(input[0].reshape(1, self.latent_dim), 
+                        tasks[i].reshape(1, self.latent_dim)) for i, modul in enumerate(self.pred_modules)]
             outs = torch.cat(outs, dim=-1)
-            probs = self.op_layer(input_reprs[0])
+            probs = self.op_layer(input[0])
         else:
-            prob_outs = [torch.Tensor(list(modul(input_reprs[0].reshape(1, self.latent_dim),
-                             task_reprs[i].reshape(1, self.latent_dim)))) for i, modul in enumerate(self.pred_modules)]  # list of (n, 2)
-            prob_outs = torch.stack(prob_outs, dim=-1)  # (n, 2, M)
-            probs, outs = prob_outs[0, :], prob_outs[1, :] # (n, M)
-        preds = (probs * outs).sum(-1)
-        return F.softmax(preds)
+            
+            prob_outs = [self.pred_modules[i](input[0], tasks[i])[0]*self.pred_modules[i](input[0], tasks[i])[1]
+                            for i in range(len(self.pred_modules))] # list of (n, 2)
+
+        return sum(prob_outs)
+
 
 
 class Modular(BaseTrainer):
@@ -82,6 +83,7 @@ class Modular(BaseTrainer):
 
 if __name__ == "__main__":
     # torch.multiprocessing.set_start_method('spawn')# temp solution !!!!
+    torch.multiprocessing.set_start_method('spawn')
     config = load_hp(conf_path="modti/apps/configs/modular.yaml")
 
     seed = config.get("seed", 42)
@@ -92,5 +94,15 @@ if __name__ == "__main__":
     train.__getitem__(0)
 
     model = Modular(**config.get("model"), **train.get_model_related_params())
-    output = model([x.cpu() for x in list(train.__getitem__(0)[0])])
+
+    params = {'batch_size': 64,
+          'shuffle': True,
+          'num_workers': 6,
+          'collate_fn': train.collate_fn}
+
+    training_generator = torch.utils.data.DataLoader(train, **params)
+
+    for batch, labels in training_generator:
+        output = model([x.cpu() for x in batch])
+        break
     print(output)

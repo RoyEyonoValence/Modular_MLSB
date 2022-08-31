@@ -9,17 +9,18 @@ dataset:
     name: ["ecfp"]
     radius: 2
   target_featurizer_params:
-    name: ['one_hot_encoding', 'word2vec'] # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
+    name: ['prottrans_bert_bfd', 'word2vec'] # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
 
 model:
   name: "Modular"
   pred_layer_type: "DoubleHeadedSimilarity"
-  nb_modules: 2
+  nb_modules: 3
   hidden_sizes: [256, 256]
   latent_dim: 1024
   batch_size: 32
   n_epochs: 50
   lr: 1e-4
+  lr_scheduler: "on_plateau"
 
 fit_params:
   nb_ckpts: 1

@@ -1,0 +1,25 @@
+seed: 75
+model_save_dir: "./best_models"
+wandb-project: null
+out_directory: "./artifacts/results"
+
+dataset:
+  name: davis
+  drug_featurizer_params:
+    name: ["ecfp"] 
+    radius: 2
+  target_featurizer_params:
+    name: ['word2vec'] # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
+
+model:
+  name: "Monolithic"
+  pred_layer_type: "Cosine"
+  hidden_sizes: [256, 256]
+  latent_dim: 1024
+  batch_size: 32
+  n_epochs: 50
+  lr: 1e-4
+
+fit_params:
+  nb_ckpts: 1
+  verbose: 1

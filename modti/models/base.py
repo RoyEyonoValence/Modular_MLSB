@@ -23,7 +23,8 @@ class BaseTrainer(LightningModule):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
-        self.save_hyperparameters(ignore=["collate_fn"])
+        #self.save_hyperparameters(ignore=["collate_fn"])
+        self.save_hyperparameters()
 
         if len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], (dict, Namespace)):
             hparams = args[0]
@@ -276,7 +277,7 @@ class BaseTrainer(LightningModule):
         return self
 
     def predict(self, dataset=None):
-        ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4, persistent_workers=True)
+        ploader = DataLoader(dataset, collate_fn=self.collate_fn, batch_size=32, num_workers=4, persistent_workers=True)
         res = [to_numpy(self.network.predict(x[0])) for x in ploader]
         return np.concatenate(res, axis=0)
 
