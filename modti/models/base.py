@@ -107,15 +107,24 @@ class BaseTrainer(LightningModule):
             results = dict()
         else:
             results = dict(loss=loss_fn(y_pred, y_true_loss))
-
+        
         for metric_name, metric_fn in metrics.items():
             if y_true.is_cuda:
                 metric_fn = metric_fn.cuda()
 
             if metric_name == "acc" or metric_name == "f1":
-                results[metric_name] = metric_fn((y_pred_metrics > 0.5)*1, y_true)
+
+                if metrics_only:
+                    results[metric_name] = metric_fn((y_pred_metrics > 0.5)*1, y_true)
+
+                    for threshold in list(np.linspace(0,1,21)):
+                        score = metric_fn((y_pred_metrics > threshold)*1, y_true)
+                        if score > results[metric_name]:
+                            results[metric_name] = score
             else:
                 results[metric_name] = metric_fn(y_pred_metrics, y_true)
+
+
         return results
 
     def configure_optimizers(self):
@@ -134,7 +143,8 @@ class BaseTrainer(LightningModule):
             scheduler = CosineAnnealingWarmRestarts(opt, T_0=8000, eta_min=self.lr/10000)
         else:
             raise Exception("Unexpected lr_scheduler")
-        return {'optimizer': opt, 'scheduler': scheduler, "monitor": "train_loss"}
+        #return {'optimizer': opt, 'scheduler': scheduler, "monitor": "train_loss"}
+        return [opt], [{"scheduler":scheduler, "monitor": "training_loss"}]
 
     def train_val_step(self, batch, optimizer_idx=0, train=True, batch_idx=0):
         if hasattr(self.network, 'train_val_step'):
@@ -233,7 +243,8 @@ class BaseTrainer(LightningModule):
                 callbacks.append(checkpoint_callback)
                 callbacks.extend(kwargs.get("extra_callbacks", []))
 
-            res = Trainer(gpus=(1 if torch.cuda.is_available() else 0),
+            res = Trainer(accelerator='gpu',
+                          devices=1,
                           max_epochs=self.n_epochs,
                           logger=kwargs.get("loggers", True),
                           default_root_dir=artifact_dir,
