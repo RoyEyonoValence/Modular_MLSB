@@ -3,6 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 import pytorch_lightning as pl
 import torchmetrics
+from traitlets import Integer
 from modti.utils import get_activation
 from modti.models.base import BaseTrainer
 from modti.models.pred_layers import DeepConcat, MLP
@@ -26,9 +27,9 @@ class ModularNetwork(nn.Module):
         **module_layer_params
     ):
         super().__init__()
-        self.nb_modules =len(task_dim) # TODO: Replace this with the number of target featurization models we have specified
-        self.input_dim = input_dim
-        self.task_dim = task_dim
+        self.input_dim = input_dim if isinstance(input_dim, list) else [input_dim]
+        self.task_dim = task_dim if isinstance(task_dim, list) else [task_dim]
+        self.nb_modules =len(self.task_dim) * len(self.input_dim) # TODO: Replace this with the number of target featurization models we have specified
         self.latent_dim = latent_dim
         self.activation = get_activation(activation)
         self.op = op
@@ -40,21 +41,34 @@ class ModularNetwork(nn.Module):
         self.input_projector = []
 
         self.task_projector = nn.ModuleList([nn.Sequential(nn.Linear(self.task_dim[i], self.latent_dim), self.activation) 
-                                            for i in range(self.nb_modules)])
-        
-        self.input_projector = nn.Sequential(nn.Linear(self.input_dim, self.latent_dim), self.activation)
-        self.op_layer = MLP(self.input_dim, [1], activation=None)
+                                            for i in range(len(self.task_dim))])
+
+        self.input_projector = nn.ModuleList([nn.Sequential(nn.Linear(self.input_dim[i], self.latent_dim), self.activation) 
+                                            for i in range(len(self.input_dim))])
+                                            
+        # self.op_layer = MLP(self.input_dim, [1], activation=None)
 
     def forward(self, input_task_pairs):
-        inputs = list(input_task_pairs)[0]
-        tasks = list(input_task_pairs)[1:]
+        inputs, tasks = input_task_pairs
+        # inputs = list(input_task_pairs)[0]
+        # tasks = list(input_task_pairs)[1:]
 
         #if len(inputs) != 1:
         #    raise NotImplementedError("More than 1 drug featurizer is not supported yet.")
+        sum_modules = 0
+        index = 0
 
-        preds = self.predict([self.input_projector(inputs)], [self.task_projector[i](task) for i, task in enumerate(tasks)])
+        for i, molecule in enumerate(inputs):
+            molecule = self.input_projector[i](molecule)
+            for j, protein in enumerate(tasks):
+                protein = self.task_projector[j](protein)
+                sum_modules += self.pred_modules[index](molecule, protein)[0]*self.pred_modules[index](molecule, protein)[1]
+                index += 1
+
+
+        #preds = self.predict([self.input_projector(inputs)], [self.task_projector[i](task) for i, task in enumerate(tasks)])
         
-        return F.sigmoid(preds)
+        return F.sigmoid(sum_modules)
 
     def predict(self, input, tasks):
 
@@ -103,6 +117,6 @@ if __name__ == "__main__":
     training_generator = torch.utils.data.DataLoader(train, **params)
 
     for batch, labels in training_generator:
-        output = model([x.cpu() for x in batch])
+        output = model(batch)
         break
     print(output)

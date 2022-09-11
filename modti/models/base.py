@@ -296,9 +296,9 @@ class BaseTrainer(LightningModule):
         # ploader = DataLoader(dataset, collate_fn=dataset.collate_fn, batch_size=32, num_workers=4) TODO: Subset Data object support collate_fn
         preds = None
         targets = None
-        ploader = DataLoader(dataset, batch_size=32, num_workers=4, persistent_workers=True)
+        ploader = DataLoader(dataset, batch_size=32, num_workers=6, persistent_workers=True, collate_fn=dataset.collate_fn)
         self.network = self.network.cuda()
-        preds, targets = zip(*[(self.network(x[0]), x[1]) for x in ploader])
+        preds, targets = zip(*[(self.network(x), label) for x, label in ploader])
         preds = torch.cat(preds, dim=0)
         targets = torch.cat(targets, dim=0)
         res = self.compute_loss_metrics(preds, targets, metrics_only=True)

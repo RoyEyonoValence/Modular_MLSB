@@ -1,4 +1,4 @@
-seed: 45
+seed: 39
 model_save_dir: "./best_models"
 wandb-project: null
 out_directory: "./artifacts/results"
@@ -6,10 +6,10 @@ out_directory: "./artifacts/results"
 dataset:
   name: biosnap
   drug_featurizer_params:
-    name: ["ecfp"]
+    name: ["ecfp"] # ['maccs', 'ecfp', 'topological', 'atompair', 'rdkit', 'pattern', 'layered', 'erg', 'estate', 'avalon-count', 'rdkit-count', 'ecfp-count', 'fcfp-count', 'topological-count', 'atompair-count'}
     radius: 2
   target_featurizer_params:
-    name: ['esm', 'word2vec'] # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
+    name: ['prottrans_bert_bfd', 'esm', 'bepler'] # ['one_hot_encoding', 'fasttext', 'glove', 'word2vec', 'prottrans_albert_bfd', 'prottrans_bert_bfd', 'prottrans_xlnet_uniref100', 'prottrans_t5_bfd', 'prottrans_t5_uniref50', 'prottrans_t5_xl_u50', 'esm', 'esm1b', 'esm1v', 'unirep', 'bepler']
 
 model:
   name: "Modular"

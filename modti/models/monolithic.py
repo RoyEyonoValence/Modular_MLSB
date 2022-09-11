@@ -47,7 +47,7 @@ class Monolithic(BaseTrainer):
 if __name__ == "__main__":
     # torch.multiprocessing.set_start_method('spawn')# temp solution !!!!
     torch.multiprocessing.set_start_method('spawn')
-    config = load_hp(conf_path="modti/apps/configs/monolithic_mini.yaml")
+    config = load_hp(conf_path="modti/apps/configs/monolithic.yaml")
 
     seed = config.get("seed", 42)
     np.random.seed(seed)
@@ -66,6 +66,6 @@ if __name__ == "__main__":
     training_generator = torch.utils.data.DataLoader(train, **params)
 
     for batch, labels in training_generator:
-        output = model([x.cpu() for x in batch])
+        output = model(batch)
         break
     print(output)

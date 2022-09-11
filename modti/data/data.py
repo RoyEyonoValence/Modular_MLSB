@@ -78,12 +78,17 @@ def dti_collate_fn(args, pad=False):
     tmp, labels = zip(*args)
     affinities = torch.stack(labels, 0)
     # tmp, = tmp if len(tmp) == 1 else tmp
-    embeddings = []
+    drugs, targets = zip(*tmp)
+    drugs_embeddings = []
+    targets_embeddings = []
 
     # mol_emb, prot_emb = zip(*tmp)
 
-    for i, embed in enumerate(list(zip(*tmp))):
-        embeddings.append(torch.stack(embed, 0))
+    for i, embed in enumerate(list(zip(*drugs))):
+        drugs_embeddings.append(torch.stack(embed, 0))
+
+    for i, embed in enumerate(list(zip(*targets))):
+        targets_embeddings.append(torch.stack(embed, 0))
 
     # tmp = torch.stack(tmp, 0)
 
@@ -94,8 +99,11 @@ def dti_collate_fn(args, pad=False):
     else:
         proteins = torch.stack(prot_emb, 0)'''
 
+    if len(drugs_embeddings) == 1 and len(targets_embeddings) == 1:
+        return tuple([drugs_embeddings[0], targets_embeddings[0]]), affinities
+
     
-    return tuple(embeddings), affinities
+    return tuple([drugs_embeddings, targets_embeddings]), affinities
 
 
 def get_target_featurizer(name, **params):
@@ -164,23 +172,27 @@ class DTIDataset(Dataset):
         return len(self.drugs)
 
     def __getitem__(self, i):
-        drug_target = []
+        drugs = []
+        targets = []
         for drug in self.featurized_drugs:
-            drug_target.append(to_tensor(drug[i], dtype=torch.float32).cuda())
+            drugs.append(to_tensor(drug[i], dtype=torch.float32).cuda())
 
         for target in self.featurized_targets:
-            drug_target.append(to_tensor(target[i].mean(0), dtype=torch.float32).cuda())
+            targets.append(to_tensor(target[i].mean(0), dtype=torch.float32).cuda())
         
 
         label = torch.tensor(int(self.labels[i])).cuda()
         if self.__target_emb_size__ is None:
-            self.__target_emb_size__ = [drug__target.shape[-1] for drug__target in drug_target[1:]]
+            self.__target_emb_size__ = [targ.shape[-1] for targ in targets]
             if len(self.__target_emb_size__) == 1:
                 self.__target_emb_size__ = self.__target_emb_size__[0]
         if self.__mol_emb_size__ is None:
-            self.__mol_emb_size__ = drug_target[0].shape[-1]
+            self.__mol_emb_size__ = [drg.shape[-1] for drg in drugs]
+            if len(self.__mol_emb_size__) == 1:
+                self.__mol_emb_size__ = self.__mol_emb_size__[0]
 
-        return tuple(drug_target), label # TODO: The final output of this should be a tuple of different featurizers
+        # return tuple(drug_target), label # TODO: The final output of this should be a tuple of different featurizers
+        return  tuple([drugs, targets]), label
 
     @property
     def mol_embedding_size(self):
