@@ -59,10 +59,11 @@ class ModularNetwork(nn.Module):
         index = 0
 
         for i, molecule in enumerate(inputs):
-            molecule = self.input_projector[i](molecule)
             for j, protein in enumerate(tasks):
-                protein = self.task_projector[j](protein)
-                sum_modules += self.pred_modules[index](molecule, protein)[0]*self.pred_modules[index](molecule, protein)[1]
+
+                sum_modules += self.pred_modules[index](self.input_projector[i](molecule),
+                                                     self.task_projector[j](protein))[0]*self.pred_modules[index](self.input_projector[i](molecule),
+                                                      self.task_projector[j](protein))[1]
                 index += 1
 
 

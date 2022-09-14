@@ -146,30 +146,41 @@ class DTIDataset(Dataset):
         assert len(targets) == len(labels)
         self.drug_featurizer = {}
         self.target_featurizer = {}
+        self.length = len(drugs)
         for featurizer in drug_featurizer_params['name']:
-            self.drug_featurizer[featurizer] = get_mol_featurizer(featurizer)
+            if featurizer in self.drug_featurizer:
+                self.drug_featurizer[featurizer].append(get_mol_featurizer(featurizer))
+                continue
+            
+            self.drug_featurizer[featurizer] = [get_mol_featurizer(featurizer)]
         
         for featurizer in target_featurizer_params['name']:
-            self.target_featurizer[featurizer] = get_target_featurizer(featurizer) #TODO: This will be a list when it is modular
+            if featurizer in self.target_featurizer:
+                self.target_featurizer[featurizer].append(get_target_featurizer(featurizer))
+                continue
+                
+            self.target_featurizer[featurizer] = [get_target_featurizer(featurizer)]
         
         self.drug_featurizer_params = drug_featurizer_params
         self.target_featurizer_params = target_featurizer_params #TODO: This will be a list when it is modular
         self.__mol_emb_size__ = None
         self.__target_emb_size__ = None
-        for featurizer_target_name  in self.target_featurizer:
-            _, target = self.precompute_features(drug=self.drugs,target=self.targets,
-                                                featurizer_target = (featurizer_target_name,
-                                                 self.target_featurizer[featurizer_target_name]))
-            self.featurized_targets.append(target)
+        for featurize_name  in self.target_featurizer:
+            for featurize in self.target_featurizer[featurize_name]:
+                _, target = self.precompute_features(drug=self.drugs,target=self.targets,
+                                                    featurizer_target = (featurize_name,
+                                                    featurize))
+                self.featurized_targets.append(target)
         
-        for featurizer_drug_name  in self.drug_featurizer:
-            drug, _ = self.precompute_features(drug=self.drugs, target=self.targets,
-                                                featurizer_drug = (featurizer_drug_name,
-                                                 self.drug_featurizer[featurizer_drug_name]))
-            self.featurized_drugs.append(drug)
+        for featurize_name  in self.drug_featurizer:
+            for featurize  in self.drug_featurizer[featurize_name]:
+                drug, _ = self.precompute_features(drug=self.drugs, target=self.targets,
+                                                    featurizer_drug = (featurize_name,
+                                                    featurize))
+                self.featurized_drugs.append(drug)
 
     def __len__(self):
-        return len(self.drugs)
+        return self.length
 
     def __getitem__(self, i):
         drugs = []
@@ -222,6 +233,31 @@ class DTIDataset(Dataset):
         targets = None
         unique_targets = dict()
         unique_drug = dict()
+
+        if featurizer_target is not None:
+            targets = []
+            featurizer_target_name, featurize_target = featurizer_target
+            for i in range(len(target)):
+
+                if target[i] in unique_targets:
+                    targets.append(unique_targets[target[i]])
+                else:
+                    if featurizer_target_name=="esm":
+                        _max_len = 1024
+                        if len(target[i]) > _max_len - 2:
+                            tar = featurize_target(target[i][: _max_len - 2])
+                            unique_targets[target[i]] = tar
+                            targets.append(unique_targets[target[i]])
+                        else:
+                            tar = featurize_target(target[i])
+                            unique_targets[target[i]] =  featurize_target(target[i])
+                            targets.append(unique_targets[target[i]])
+                    else:
+                        tar = featurize_target(target[i])
+                        unique_targets[target[i]] =  featurize_target(target[i])
+                        targets.append(unique_targets[target[i]])
+
+            
         if featurizer_drug is not None:
             drugs = []
             featurizer_drug_name, featurize_drug = featurizer_drug
@@ -234,27 +270,6 @@ class DTIDataset(Dataset):
                         drugs.append(unique_drug[drug[i]])
                 except:
                     print(f"It seems like the input molecule '{drug[i]}' is invalid.")
-
-        
-        if featurizer_target is not None:
-            targets = []
-            featurizer_target_name, featurize_target = featurizer_target
-            for i in range(len(target)):
-
-                if target[i] in unique_targets:
-                    targets.append(unique_targets[target[i]])
-                else:
-                    if featurizer_target_name=="esm":
-                        _max_len = 1024
-                        if len(target[i]) > _max_len - 2:
-                            unique_targets[target[i]] = featurize_target(target[i][: _max_len - 2])
-                            targets.append(unique_targets[target[i]])
-                        else:
-                            unique_targets[target[i]] =  featurize_target(target[i])
-                            targets.append(unique_targets[target[i]])
-                    else:
-                        unique_targets[target[i]] =  featurize_target(target[i])
-                        targets.append(unique_targets[target[i]])
 
         return drugs, targets
 
