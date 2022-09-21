@@ -12,6 +12,43 @@ from modti.apps.utils import load_hp, parse_overrides, nested_dict_update
 from modti.data import get_dataset, train_val_test_split
 import numpy as np
 import pdb
+from chembag.nn.layers.agg import FeatureAgg, InstanceAgg
+import wandb
+
+class HadamardPool1D(nn.Module):
+
+    def __init__(self, dim=-2):
+        super().__init__()
+        self.dim = dim
+    
+    def forward(self, x):
+        return torch.prod(x, dim=self.dim)
+class FeatureAggWrapper(nn.Module):
+    r"""
+    Global Average pooling of a Tensor over one dimension
+    Args:
+        dim (int, optional): The dimension on which the pooling operation is applied.
+    """
+
+    def __init__(self, estimator, pool="mean", input_dim=128, dim=1):
+        super().__init__()
+        self.estimator = estimator
+
+        if pool == "hadamard":
+            self.pool = HadamardPool1D()
+        else:
+            featureAgg = FeatureAgg(estimator, pool, input_dim, dim)
+            self.pool = featureAgg.pool
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.FloatTensor): Input tensor of size (B, N, D)
+        Returns:
+            out (torch.FloatTensor): Output tensor of size (B, O)
+        """
+        out = self.pool(x)
+        return self.estimator(out)
 
 
 class ModularNetwork(nn.Module):
@@ -33,12 +70,13 @@ class ModularNetwork(nn.Module):
         self.latent_dim = latent_dim
         self.activation = get_activation(activation)
         self.op = op
-        pred_layer_class = AVAILABLE_PRED_LAYERS[pred_layer_type]
-        self.pred_modules = nn.ModuleList([
-            pred_layer_class(input_dim=latent_dim, task_dim=latent_dim, **module_layer_params, output_dim=1 if op else 2)
-            for _ in range(self.nb_modules)]) #TODO: Use Cosine similarity for reproducing. MLP might not respect structure
+        self.output_dim_estimator = 512
+        #pred_layer_class = AVAILABLE_PRED_LAYERS["DoubleHeadedSimilarity"]
+        #self.pred_modules = nn.ModuleList([
+        #    pred_layer_class(input_dim=latent_dim, task_dim=latent_dim, **module_layer_params, output_dim=1 if op else 2)
+        #    for _ in range(self.nb_modules)]) #TODO: Use Cosine similarity for reproducing. MLP might not respect structure
 
-        self.input_projector = []
+        # self.input_projector = []
 
         self.task_projector = nn.ModuleList([nn.Sequential(nn.Linear(self.task_dim[i], self.latent_dim), self.activation) 
                                             for i in range(len(self.task_dim))])
@@ -46,30 +84,51 @@ class ModularNetwork(nn.Module):
         self.input_projector = nn.ModuleList([nn.Sequential(nn.Linear(self.input_dim[i], self.latent_dim), self.activation) 
                                             for i in range(len(self.input_dim))])
                                             
+        self.estimator = [nn.Sequential(nn.Linear(self.latent_dim, self.output_dim_estimator)) for _ in range(self.nb_modules)]
+        #self.featagg = FeatureAgg(self.estimator, pool="attn", input_dim=self.latent_dim)
+
+        self.featagg = nn.ModuleList([ FeatureAggWrapper(self.estimator[i],
+                                     pool=pred_layer_type, input_dim=self.latent_dim)
+                                    for i in range(self.nb_modules)])
+        
+        self.instanceagg = InstanceAgg(nn.Linear(self.output_dim_estimator, 1), pool="mil-attn")
         # self.op_layer = MLP(self.input_dim, [1], activation=None)
 
     def forward(self, input_task_pairs):
         inputs, tasks = input_task_pairs
-        # inputs = list(input_task_pairs)[0]
-        # tasks = list(input_task_pairs)[1:]
-
-        #if len(inputs) != 1:
-        #    raise NotImplementedError("More than 1 drug featurizer is not supported yet.")
-        sum_modules = 0
         index = 0
+        # self.alphas = torch.Tensor([]).cuda() # Bad Coding
+        self.ys = torch.Tensor([]).cuda() # Bad Coding
+        res = None
 
         for i, molecule in enumerate(inputs):
             for j, protein in enumerate(tasks):
-
-                sum_modules += self.pred_modules[index](self.input_projector[i](molecule),
-                                                     self.task_projector[j](protein))[0]*self.pred_modules[index](self.input_projector[i](molecule),
-                                                      self.task_projector[j](protein))[1]
+                mol_proj = self.input_projector[i](molecule)
+                prot_proj = self.task_projector[j](protein)
+                mol_prot_proj = torch.stack((mol_proj,prot_proj), dim=-2)
+                pred = self.featagg[index](mol_prot_proj)
+                # alpha = pred[:,0].unsqueeze(dim=-1)
+                y = pred.unsqueeze(dim=-2)
+                # self.alphas = torch.cat((self.alphas, F.sigmoid(alpha)), dim=1)
+                self.ys = torch.cat((self.ys, y), dim=1)
                 index += 1
 
 
-        #preds = self.predict([self.input_projector(inputs)], [self.task_projector[i](task) for i, task in enumerate(tasks)])
-        
-        return F.sigmoid(sum_modules)
+        #self.alphas = F.softmax(self.alphas)
+        # res = (self.alphas * self.ys).sum(dim=-1)
+        # res = self.ys.sum(dim=-1)
+        # self.ys = self.ys
+        res, contrib = self.instanceagg(self.ys, return_contribution=True)
+        res = res.squeeze(dim=-1)
+        contrib = contrib.squeeze(dim=-1)
+
+        contrib = torch.mean(contrib, dim=0)
+
+        for index, module_contrib in enumerate(contrib):
+            name = 'module '+ str(index)
+            wandb.log({name: module_contrib})
+
+        return F.sigmoid(res)
 
     def predict(self, input, tasks):
 
