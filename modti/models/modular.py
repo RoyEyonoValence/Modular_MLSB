@@ -60,7 +60,6 @@ class ModularNetwork(nn.Module):
         latent_dim=512,
         activation='ReLU',
         op=False,
-        pred_layer_type="DeepConcat",
         **module_layer_params
     ):
         super().__init__()
@@ -71,6 +70,8 @@ class ModularNetwork(nn.Module):
         self.activation = get_activation(activation)
         self.op = op
         self.output_dim_estimator = 512
+        self.feat_agg_pool = module_layer_params["feat_agg"]
+        self.pred_agg_pool = module_layer_params["pred_agg"]
         #pred_layer_class = AVAILABLE_PRED_LAYERS["DoubleHeadedSimilarity"]
         #self.pred_modules = nn.ModuleList([
         #    pred_layer_class(input_dim=latent_dim, task_dim=latent_dim, **module_layer_params, output_dim=1 if op else 2)
@@ -88,10 +89,10 @@ class ModularNetwork(nn.Module):
         #self.featagg = FeatureAgg(self.estimator, pool="attn", input_dim=self.latent_dim)
 
         self.featagg = nn.ModuleList([ FeatureAggWrapper(self.estimator[i],
-                                     pool=pred_layer_type, input_dim=self.latent_dim)
+                                     pool=self.feat_agg_pool, input_dim=self.latent_dim)
                                     for i in range(self.nb_modules)])
         
-        self.instanceagg = InstanceAgg(nn.Linear(self.output_dim_estimator, 1), pool="mil-attn")
+        self.instanceagg = InstanceAgg(nn.Linear(self.output_dim_estimator, 1), pool=self.pred_agg_pool)
         # self.op_layer = MLP(self.input_dim, [1], activation=None)
 
     def forward(self, input_task_pairs):
