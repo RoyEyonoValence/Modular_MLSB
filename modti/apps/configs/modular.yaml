@@ -4,7 +4,7 @@ wandb-project: null
 out_directory: "./artifacts/results"
 
 dataset:
-  name: davis
+  name: biosnap
   drug_featurizer_params:
     name: ['ecfp'] # ['maccs', 'ecfp', 'topological', 'atompair', 'rdkit', 'pattern', 'layered', 'erg', 'estate', 'avalon-count', 'rdkit-count', 'ecfp-count', 'fcfp-count', 'topological-count', 'atompair-count'}
     radius: 2
