@@ -16,8 +16,6 @@ from modti.apps.utils import load_hp, parse_overrides, nested_dict_update
 from modti.data import get_dataset, train_val_test_split
 from modti.models import get_model
 
-import sys
-
 
 @click.command("train")
 #@click.argument("config-path", type=click.Path(exists=True))
@@ -47,8 +45,6 @@ def train_cli(config_path, overrides, wandb_project, wandb_entity):
 
     model = get_model(**config.get("model"), **train.get_model_related_params())
     logger.info("Succesfully initialized model")
-
-    sys.exit()
 
     if wandb_project is not None:
         wandb.init(wandb_project, entity=wandb_entity, config=config)
