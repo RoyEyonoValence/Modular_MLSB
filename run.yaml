@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  annotations: {}
+  generateName: research-tutorial-
+  labels:
+    organization: internal
+    pantagruel/generateName: research-tutorial
+    pantagruel/version: 0.8.4
+    project: research
+    run: tutorial
+  name: research-tutorial-tu1zcf4v4u
+spec:
+  entrypoint: entrypoint
+  nodeSelector:
+    pool-name: greedy-pool-a100-24-2-preemptible
+  podMetadata:
+    annotations: {}
+    labels:
+      organization: internal
+      pantagruel/generateName: research-tutorial
+      pantagruel/version: 0.8.4
+      project: research
+      run: tutorial
+  templates:
+  - name: entrypoint
+    script:
+      command:
+      - bash
+      - --login
+      env:
+      - name: ENV_NAME
+        value: modti
+      - name: GIT_BRANCH
+        value: refactoring
+      envFrom:
+      - secretRef:
+          name: gargantua-secrets
+      image: gcr.io/platform-iv/conda-gpu
+      resources:
+        limits:
+          cpu: 22.55
+          memory: 152.27Gi
+          nvidia.com/gpu: 2
+        requests:
+          cpu: 22.55
+          memory: 152.27Gi
+          nvidia.com/gpu: 2
+      source: "\n# Exit on error\nset -e \n\n# Authenticate to Valence Anaconda\n\
+        TOKEN_DIR=\"$HOME/.config/binstar\"\nTOKEN_PATH=\"$TOKEN_DIR/https%3A%2F%2Fapi.anaconda.org.token\"\
+        \nmkdir -p $TOKEN_DIR\necho -e \"${VALENCE_ANACONDA_TOKEN}\\c\" > $TOKEN_PATH\n\
+        \n# Clone the Github repository\ngit clone --branch $GIT_BRANCH --single-branch\
+        \ https://github.com/RoyEyonoValence/Modular_MLSB.git\ncd Modular_MLSB\n\n\
+        # Setup the environment\nmamba env create -f env.yml\nconda activate $ENV_NAME\n\
+        echo \"Debug1\"\npip install -e .\necho \"Debug2\"\n\nexport WANDB_API_KEY=4bbba0a393de5b8e6ad1bee145d38bbb62ba7155\n\
+        \n# Run our script\npython modti/apps/train.py modti/apps/configs/modular.yaml"
+  tolerations:
+  - effect: NoSchedule
+    key: reserved-pool
+    operator: Equal
+    value: 'true'
+  - effect: NoSchedule
+    key: nvidia.com/gpu
+    operator: Equal
+    value: present

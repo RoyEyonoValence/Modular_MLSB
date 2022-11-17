@@ -1,0 +1,20 @@
+version: 1
+workflow_path: 1_argo_workflow_helloworld.yaml
+generate_name: True
+
+secrets:
+  - node_selector: all
+    secret_name: gargantua-secrets
+
+env_variables:
+  - node_selector: all
+    envs:
+      ENV_NAME: modti
+      GIT_BRANCH: 'refactoring'
+
+machines:
+  - node_selector: all
+    machine_name: greedy-pool-a100-24-2-preemptible
+    cpu: null
+    memory: null
+    gpu: null

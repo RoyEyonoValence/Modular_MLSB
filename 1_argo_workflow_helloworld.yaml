@@ -1,0 +1,47 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: research-tutorial-
+  labels:
+    organization: internal
+    project: research
+    run: tutorial
+    
+
+spec:
+  entrypoint: entrypoint
+  templates:
+    - name: entrypoint
+      script:
+        image: 'gcr.io/platform-iv/conda-gpu'
+        command: [bash, --login]
+        source: |
+        
+          # Exit on error
+          set -e 
+          
+          # Authenticate to Valence Anaconda
+          # TOKEN_DIR="$HOME/.config/binstar"
+          # TOKEN_PATH="$TOKEN_DIR/https%3A%2F%2Fapi.anaconda.org.token"
+          # mkdir -p $TOKEN_DIR
+          echo -e "${VALENCE_ANACONDA_TOKEN}\c" > $TOKEN_PATH
+          
+
+
+          conda activate $ENV_NAME
+
+          # Clone the Github repository
+          git clone --branch $GIT_BRANCH --single-branch https://github.com/valence-discovery/modti.git
+          cd modti
+
+          # Setup the environment
+          # mamba env create -f env.yml
+          # echo "Debug1"
+
+          pip install -e .
+          echo "Debug2"
+
+          export WANDB_API_KEY=4bbba0a393de5b8e6ad1bee145d38bbb62ba7155
+          
+          # Run our script
+          python modti/apps/train.py modti/apps/configs/modular.yaml
