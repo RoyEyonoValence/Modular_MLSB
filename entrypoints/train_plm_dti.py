@@ -24,6 +24,7 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset, DataLoader
 from modti.models import pred_layers as dti_architecture
 
+<<<<<<< HEAD:entrypoints/train_plm_dti.py
 
 ##################
 # Data Set Utils #
@@ -186,6 +187,94 @@ def get_model(model_type, **model_kwargs):
         return getattr(dti_architecture, model_type)(**model_kwargs)
     except AttributeError:
         raise ValueError("Specified model is not supported")
+=======
+from argparse import ArgumentParser
+from src import plm_dti
+
+logg = logging.getLogger(__name__)
+
+parser = ArgumentParser(description="PLM_DTI Training.")
+parser.add_argument(
+    "-b",
+    "--batch-size",
+    default=16,
+    type=int,
+    metavar="N",
+    help="mini-batch size (default: 16), this is the total "
+    "batch size of all GPUs on the current node when "
+    "using Data Parallel or Distributed Data Parallel",
+)
+parser.add_argument(
+    "--exp-id", required=True, help="Experiment ID", dest="experiment_id"
+)
+parser.add_argument(
+    "--model-type",
+    required=True,
+    default="SimpleCosine",
+    help="Model architecture",
+    dest="model_type",
+)
+parser.add_argument(
+    "--mol-feat", required=True, help="Molecule featurizer", dest="mol_feat"
+)
+parser.add_argument(
+    "--prot-feat", required=True, help="Molecule featurizer", dest="prot_feat"
+)
+parser.add_argument(
+    "--latent-dist",
+    default="Cosine",
+    help="Distance in embedding space to supervise with",
+    dest="latent_dist",
+)
+
+parser.add_argument(
+    "-j",
+    "--workers",
+    default=0,
+    type=int,
+    metavar="N",
+    help="number of data loading workers (default: 0)",
+)
+parser.add_argument(
+    "--epochs",
+    default=50,
+    type=int,
+    metavar="N",
+    help="number of total epochs to run",
+)
+parser.add_argument(
+    "--task",
+    choices=["biosnap", "bindingdb", "davis", "biosnap_prot", "biosnap_mol"],
+    default="",
+    type=str,
+    metavar="TASK",
+    required=True,
+    help="Task name. Could be biosnap, bindingdb, davis, biosnap_prot, biosnap_mol.",
+)
+parser.add_argument(
+    "--lr",
+    "--learning-rate",
+    default=1e-4,
+    type=float,
+    metavar="LR",
+    help="initial learning rate (default: 1e-4)",
+    dest="lr",
+)
+parser.add_argument(
+    "--r",
+    "--replicate",
+    default=0,
+    type=int,
+    help="Replicate",
+    dest="replicate",
+)
+parser.add_argument(
+    "--d", "--device", default=0, type=int, help="CUDA device", dest="device"
+)
+parser.add_argument(
+    "--checkpoint", default=None, help="Model weights to start from"
+)
+>>>>>>> 59a49f218c62a91fa3c6ff1783803171e907c73e:train_plm_dti.py
 
 
 def flatten(d):
@@ -349,14 +438,6 @@ def main(dataset, mol_featurizer, prot_featurizer, arch_type, batch_size, latent
     model = model.cuda()
     opt = torch.optim.Adam(model.parameters(), lr=config.training.lr)
 
-    print("--- loading wandb ---")
-    wandb.init(
-        project=args.wandb_proj,
-        name=config.experiment_id,
-        config=flatten(config),
-    )
-    wandb.watch(model, log_freq=100)
-
     # early stopping
     max_auprc = 0
     model_max = copy.deepcopy(model)
@@ -389,14 +470,7 @@ def main(dataset, mol_featurizer, prot_featurizer, arch_type, batch_size, latent
 
             loss = loss_fct(n, label)
             loss_history.append(loss)
-            wandb.log(
-                {
-                    "train/loss": loss,
-                    "epoch": epo,
-                    "step": epo * tg_len * args.batch_size
-                    + i * args.batch_size,
-                }
-            )
+            
 
             opt.zero_grad()
             loss.backward()
@@ -425,22 +499,7 @@ def main(dataset, mol_featurizer, prot_featurizer, arch_type, batch_size, latent
                     val_logits,
                     val_loss,
                 ) = test(validation_generator, model)
-                wandb.log(
-                    {
-                        "val/loss": val_loss,
-                        "epoch": epo,
-                        "val/auc": float(val_auc),
-                        "val/aupr": float(val_auprc),
-                        "val/f1": float(val_f1),
-                        "val/acc": float(val_accuracy),
-                        "val/sens": float(val_sensitivity),
-                        "val/spec": float(val_specificity),
-                        "Charts/epoch_time": (
-                            epoch_time_end - epoch_time_start
-                        )
-                        / config.training.every_n_val,
-                    }
-                )
+                
                 if val_auprc > max_auprc:
                     model_max = copy.deepcopy(model)
                     max_auprc = val_auprc
@@ -472,20 +531,6 @@ def main(dataset, mol_featurizer, prot_featurizer, arch_type, batch_size, latent
                 test_loss,
             ) = test(testing_generator, model_max)
             test_end_time = time()
-            wandb.log(
-                {
-                    "test/loss": test_loss,
-                    "epoch": epo,
-                    "test/auc": float(test_auc),
-                    "test/aupr": float(test_auprc),
-                    "test/f1": float(test_f1),
-                    "test/acc": float(test_accuracy),
-                    "test/sens": float(test_sensitivity),
-                    "test/spec": float(test_specificity),
-                    "test/eval_time": (test_end_time - test_start_time),
-                    "Charts/wall_clock_time": (end_time - start_time),
-                }
-            )
             print(
                 "Testing AUROC: "
                 + str(test_auc)
