@@ -1,0 +1,10 @@
+# This compose file is only used for local testing.
+version: "3"
+services:
+  topac:
+    build:
+      context: ./
+      args:
+        - INVIVOAI_ANACONDA_USER_BOT_TOKEN
+    image: gcr.io/platform-iv/modti
+    env_file: .env

@@ -1,0 +1,68 @@
+# This is the Github Action worfklow to build and push
+# a docker image to `gcr.io/platform-iv`.
+# The Github repo must contain the following secret variables:
+# - `GCR_PUSH_KEY`
+# IMPORTANT: The workflow is only executed when triggered manually or when a tag is pushed.
+
+name: docker
+
+env:
+  # Google container registry
+  REGISTRY: gcr.io
+
+  # Google Cloud project id
+  PROJECT_ID: platform-iv
+
+  IMAGE_NAME: modti
+
+# The below statement means the workflow must be manually triggered
+# or will be triggered when a new tag is pushed.
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ["*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # If the build takes more than 30 minutes, it's likely there is an issue.
+    timeout-minutes: 30
+
+    env:
+      BUILD_ARGS: |
+        INVIVOAI_ANACONDA_USER_BOT_TOKEN=${{ secrets.INVIVOAI_ANACONDA_USER_BOT_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Docker meta
+        id: docker_meta
+        uses: crazy-max/ghaction-docker-meta@v1
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}
+          tag-sha: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Google Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: _json_key
+          password: ${{ secrets.GCR_PUSH_KEY }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: ./
+          file: ./Dockerfile
+          platforms: linux/amd64
+          pull: true
+          push: true
+          build-args: "${{ env.BUILD_ARGS }}"
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
